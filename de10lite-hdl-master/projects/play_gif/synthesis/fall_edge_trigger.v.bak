@@ -1,0 +1,19 @@
+
+module fall_edge_trigger(
+	input clk,
+	input reset,
+	input level,
+	output fall_edge
+);
+
+reg level_ff;
+
+always@(posedge clk or negedge reset) begin
+	if(!reset) level_ff <= 1'b0;
+	else level_ff <= level;
+end
+
+assign fall_edge = (~level) & level_ff;
+
+
+endmodule

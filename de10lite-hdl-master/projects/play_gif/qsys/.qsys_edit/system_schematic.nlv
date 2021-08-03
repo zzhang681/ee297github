@@ -1,0 +1,37 @@
+# # File gsaved with Nlview version 6.3.8  2013-12-19 bk=1.2992 VDI=34 GEI=35
+# 
+preplace inst system.framecount -pg 1 -lvl 4 -y 390
+preplace inst system.clock_bridge -pg 1 -lvl 4 -y 490
+preplace inst system.bridge_0 -pg 1 -lvl 2 -y 30
+preplace inst system.jtag_master.b2p -pg 1
+preplace inst system.jtag_master.p2b -pg 1
+preplace inst system.jtag_master.clk_rst -pg 1
+preplace inst system.jtag_master -pg 1 -lvl 2 -y 160
+preplace inst system.jtag_master.b2p_adapter -pg 1
+preplace inst system.jtag_master.jtag_phy_embedded_in_jtag_master -pg 1
+preplace inst system.jtag_master.p2b_adapter -pg 1
+preplace inst system.jtag_master.timing_adt -pg 1
+preplace inst system.altpll_0 -pg 1 -lvl 3 -y 230
+preplace inst system.jtag_master.transacto -pg 1
+preplace inst system -pg 1 -lvl 1 -y 40 -regy -20
+preplace inst system.sdram_controller -pg 1 -lvl 4 -y 530
+preplace inst system.jtag_master.fifo -pg 1
+preplace inst system.jtag_master.clk_src -pg 1
+preplace inst system.imagecount -pg 1 -lvl 4 -y 290
+preplace inst system.clk_0 -pg 1 -lvl 1 -y 160
+preplace netloc EXPORT<net_container>system</net_container>(MASTER)system.clk_25,(MASTER)altpll_0.c1) 1 3 2 NJ 260 NJ
+preplace netloc EXPORT<net_container>system</net_container>(SLAVE)system.clk,(SLAVE)clk_0.clk_in) 1 0 1 NJ
+preplace netloc EXPORT<net_container>system</net_container>(SLAVE)system.sdram,(SLAVE)sdram_controller.wire) 1 0 4 NJ 600 NJ 600 NJ 600 NJ
+preplace netloc FAN_OUT<net_container>system</net_container>(SLAVE)imagecount.reset,(MASTER)jtag_master.master_reset,(SLAVE)sdram_controller.reset,(SLAVE)framecount.reset) 1 2 2 640 340 920
+preplace netloc EXPORT<net_container>system</net_container>(SLAVE)system.imagecount,(SLAVE)imagecount.external_connection) 1 0 4 NJ 320 NJ 320 NJ 320 NJ
+preplace netloc EXPORT<net_container>system</net_container>(SLAVE)framecount.external_connection,(SLAVE)system.framecount) 1 0 4 NJ 420 NJ 420 NJ 420 NJ
+preplace netloc EXPORT<net_container>system</net_container>(MASTER)clock_bridge.out_clk,(MASTER)system.clk_100) 1 4 1 NJ
+preplace netloc FAN_OUT<net_container>system</net_container>(MASTER)clk_0.clk,(SLAVE)jtag_master.clk,(SLAVE)altpll_0.inclk_interface) 1 1 2 290 240 NJ
+preplace netloc EXPORT<net_container>system</net_container>(MASTER)system.sdram_clk_100,(MASTER)altpll_0.c2) 1 3 2 NJ 280 NJ
+preplace netloc EXPORT<net_container>system</net_container>(SLAVE)bridge_0.external_interface,(SLAVE)system.interface) 1 0 2 NJ 60 NJ
+preplace netloc FAN_OUT<net_container>system</net_container>(SLAVE)jtag_master.clk_reset,(MASTER)clk_0.clk_reset,(SLAVE)bridge_0.reset,(SLAVE)altpll_0.inclk_interface_reset) 1 1 2 310 260 NJ
+preplace netloc INTERCONNECT<net_container>system</net_container>(MASTER)bridge_0.avalon_master,(SLAVE)altpll_0.pll_slave,(SLAVE)imagecount.s1,(MASTER)jtag_master.master,(SLAVE)sdram_controller.s1,(SLAVE)framecount.s1) 1 2 2 660 360 880
+preplace netloc EXPORT<net_container>system</net_container>(SLAVE)clk_0.clk_in_reset,(SLAVE)system.reset) 1 0 1 NJ
+preplace netloc FAN_OUT<net_container>system</net_container>(MASTER)altpll_0.c0,(SLAVE)bridge_0.clk,(SLAVE)sdram_controller.clk,(SLAVE)framecount.clk,(SLAVE)clock_bridge.in_clk,(SLAVE)imagecount.clk) 1 1 3 330 120 NJ 120 900
+levelinfo -pg 1 0 80 1230
+levelinfo -hier system 90 120 410 690 970 1120

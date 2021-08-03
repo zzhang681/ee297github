@@ -1,0 +1,18 @@
+	component qsys_system is
+		port (
+			clk_clk           : in    std_logic                     := 'X';             -- clk
+			dram_clk_ext_clk  : out   std_logic;                                        -- clk
+			dram_export_addr  : out   std_logic_vector(12 downto 0);                    -- addr
+			dram_export_ba    : out   std_logic_vector(1 downto 0);                     -- ba
+			dram_export_cas_n : out   std_logic;                                        -- cas_n
+			dram_export_cke   : out   std_logic;                                        -- cke
+			dram_export_cs_n  : out   std_logic;                                        -- cs_n
+			dram_export_dq    : inout std_logic_vector(15 downto 0) := (others => 'X'); -- dq
+			dram_export_dqm   : out   std_logic_vector(1 downto 0);                     -- dqm
+			dram_export_ras_n : out   std_logic;                                        -- ras_n
+			dram_export_we_n  : out   std_logic;                                        -- we_n
+			led_export_export : out   std_logic_vector(7 downto 0);                     -- export
+			reset_reset_n     : in    std_logic                     := 'X'              -- reset_n
+		);
+	end component qsys_system;
+
