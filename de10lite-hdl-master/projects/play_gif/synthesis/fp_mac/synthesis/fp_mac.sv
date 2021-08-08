@@ -25,6 +25,8 @@ enum bit[3:0] {
 	READ_DONE,
 	OP,
 	OP_DONE,
+	RELU_START,
+	RELU,
 	ALL_DONE
 } cs, ns;
 
@@ -110,6 +112,7 @@ result: 0.05+0.1+0.15+0.2+0.25=0.75 (3F400000)
 9. how to input image?           (Finished)
 	address 204000 - 204783
 10. address of image does not increase
+11. add ReLU
 */
 
 //ns
@@ -129,11 +132,16 @@ always_comb begin
 		READ_DONE: ns = OP;
 		OP: begin
 			if(done) begin
-				if(read_done) ns = ALL_DONE;
+				if(read_done) ns = RELU_START;
 				else ns = OP_DONE;
 			end else ns = OP;
 		end
 		OP_DONE: ns = READ;
+		RELU_START: ns = RELU;
+		RELU: begin
+			if(address == 15) ns = ALL_DONE;
+			else ns = RELU;
+		end
 		ALL_DONE: ns = ALL_DONE;
 		default: ns = IDLE;
 	endcase
@@ -167,6 +175,11 @@ always_comb begin
 			if(address < 15) address_next = address + 1;
 			else address_next = 0;
 			if(ns == READ_START) address_next = 0;
+		end
+		RELU_START: address_next = 0;
+		RELU: begin
+			if(address < 15) address_next = address + 1;
+			else address_next = 0;
 		end
 		default: begin
 			if(done) begin 
@@ -258,6 +271,30 @@ always_ff @(posedge clk) begin
 	else begin
 		case(cs)
 		IDLE: hidden[address] <= 0;
+		READ_START: begin
+			hidden[0] <= 0;
+			hidden[1] <= 0;
+			hidden[2] <= 0;
+			hidden[3] <= 0;
+			hidden[4] <= 0;
+			hidden[5] <= 0;
+			hidden[6] <= 0;
+			hidden[7] <= 0;
+			hidden[8] <= 0;
+			hidden[9] <= 0;
+			hidden[10] <= 0;
+			hidden[11] <= 0;
+			hidden[12] <= 0;
+			hidden[13] <= 0;
+			hidden[14] <= 0;
+			hidden[15] <= 0;
+		end
+		RELU: begin
+			if(hidden[address][31]) hidden[address][31:0] <= 0;
+			if(hidden[address][63]) hidden[address][63:32] <= 0;
+			if(hidden[address][95]) hidden[address][95:64] <= 0;
+			if(hidden[address][127]) hidden[address][127:96] <= 0;
+		end
 		default: begin
 			if(done_add1) hidden[address][31:0] <= result_add1;
 			if(done_add2) hidden[address][63:32] <= result_add2;
@@ -275,17 +312,17 @@ end
 // ------------------------- TEST SIGNALS -------------------------- //
 //result
 
-/*
+
 always_ff @(posedge clk) begin
 	if(reset) result <= 0;
 	else begin
 		if(cs == IDLE) result <= 0; 
-		else if(done) result <= hidden[1][127:96];//result_add1;
+		else if(done) result <= hidden[0][31:0];//result_add1;
 		else result <= result;
 	end
 end
-*/
 
+/*
 always_ff @(posedge clk) begin
 	if(reset) result <= 0;
 	else begin
@@ -295,7 +332,7 @@ always_ff @(posedge clk) begin
 		//end
 	end
 end
-
+*/
 //assign result = address;
 
 

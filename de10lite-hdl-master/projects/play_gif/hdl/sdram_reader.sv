@@ -33,6 +33,7 @@ module sdram_reader #(
 		  output	logic[INTERFACE_WIDTH_BITS-1:0]			data_reg,
 		  output read_done,
 		  output logic acknowledge_flag,
+		  output [4:0] states,
 		  output reg ack
 			/*
         // General Module IO
@@ -62,7 +63,7 @@ localparam INTERFACE_WIDTH_BYTES = INTERFACE_WIDTH_BITS / 8;
 
 //assign interface_byte_enable = (2 ** INTERFACE_WIDTH_BYTES) - 1;
 
-parameter final_address = 80;//544;		//200688, 200704		//op# = address / 16
+parameter final_address = 200688;//544;		//200688, 200704		//op# = address / 16
 
 parameter img_address = 204000;			//204000-204783
 parameter img_address_fin = img_address + 783;
@@ -89,7 +90,23 @@ enum bit[3:0] {
 	ALL_DONE
 } cs, ns;
 
+/*
+parameter IDLE = 5'b00000;
+parameter READ_IMG_START = 5'b00001;
+parameter READ_IMG_START2 = 5'b00010;
+parameter READ_IMG = 5'b00011;
+parameter READ_IMG_DONE = 5'b00100;
+parameter READ_IMG_FIN = 5'b00101;
+parameter READ_START = 5'b00110;
+parameter READ = 5'b00111;
+parameter READ_DONE = 5'b01000;
+parameter OP = 5'b01001;
+parameter OP_DONE = 5'b01010;
+parameter ALL_DONE = 5'b01011;
 
+logic [4:0] cs, ns;
+*/
+assign states = cs;
 assign read_done = (cs == ALL_DONE) ? 1 : 0;
 assign edge_det_IDLE = (cs == IDLE) ? 1:0;
 
@@ -107,7 +124,9 @@ assign ack = (cs == READ_IMG_FIN) ? 1 : 0;//(cs == ALL_DONE) ? 1:0;
 always_latch begin
 	case(cs)
 		IDLE: acknowledge_flag = 0;
-		//READ_IMG_START: acknowledge_flag = 0;
+		READ_IMG_START2: acknowledge_flag = 0;
+		READ_IMG_DONE: acknowledge_flag = 0;
+		READ_IMG_FIN: acknowledge_flag = 0;
 		READ_START: acknowledge_flag = 0;
 		READ_DONE: acknowledge_flag = 0;
 		default: begin
@@ -181,7 +200,7 @@ always @(*) begin
 			
 			READ_IMG_START: interface_address_next = img_address;
 			
-			READ_IMG_START2: interface_address_next = img_address;
+			READ_IMG_START2: interface_address_next = interface_address;
 			/*
 			READ_IMG: begin
 				if(interface_acknowledge) begin 
@@ -225,8 +244,9 @@ always@(*) begin
 			READ_IMG_START2: interface_read = 1'b1;
 			
 			READ_IMG: begin
-				if(interface_acknowledge) interface_read = 1'b0;
-				else interface_read = 1'b1;
+				interface_read = 1'b1;
+				//if(interface_acknowledge) interface_read = 1'b0;
+				//else interface_read = 1'b1;
 			end
 			
 			READ_START: interface_read = 1'b1;
@@ -243,10 +263,19 @@ always@(*) begin
 	end
 end
 
+integer count;
+
+always_ff @(posedge clk) begin
+	if(!reset) count <= 0;
+	else begin
+		if(cs == OP_DONE) count <= count + 1;
+	end
+end
+
 
 
 //data_reg
-/*
+
 always_ff @(posedge clk) begin
 	if(!reset) data_reg <= 0;
 	else begin
@@ -254,8 +283,9 @@ always_ff @(posedge clk) begin
 		else data_reg <= data_reg;
 	end
 end
-*/
-assign data_reg = interface_address;
+
+//assign data_reg = interface_address;
+//assign data_reg = count;
 
 
 /*

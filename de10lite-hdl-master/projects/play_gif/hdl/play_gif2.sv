@@ -148,35 +148,9 @@ logic [31:0] din_fp;
 logic adone_fp;
 logic acknowledge_flag;
 
-enum bit[3:0] {
-	IDLE,
-	READ_IMG,
-	READ_W
-} cs, ns;
+logic [4:0] states;
 
-always_ff @(posedge clk_50) begin
-	if(reset_p) cs <= IDLE;
-	else cs <= ns;
-end
 
-always_comb begin
-	ns = cs;
-	case(cs)
-		IDLE: begin
-			if(start_fp) ns = READ_IMG;
-			else if(start_manual) ns = READ_W;
-			else ns = IDLE;
-		end
-		READ_IMG: begin
-			if(start_manual) ns = READ_W;
-			else ns = READ_IMG;
-		end
-		READ_W: begin
-			ns = READ_W;
-		end
-		default: ns = IDLE;
-	endcase
-end
 
 /*
 union packed {
@@ -185,7 +159,7 @@ union packed {
 } img_reg;
 */
 logic [783:0][7:0] img_reg;
-logic [9:0] address;
+logic [9:0] address, address_next;
 
 logic [7:0] img_in;
 logic [31:0] img_fp;
@@ -193,13 +167,31 @@ logic start_manual;
 
 //assign img_in = 128;
 
-assign address = 0;
+//assign address = 0;
+always_ff @(posedge clk_50) begin
+	if(reset_p) address <= 0;
+	else address <= address_next;
+end
+
+always_comb begin
+	address_next = address;
+	case(states) 
+		5'b00100: address_next = address + 16;
+		5'b00110: address_next = 0;
+		//5'b01010: address_next = address + 1;
+		default: begin
+			if(next_in_fp) address_next = address + 1;
+			else address_next = address;
+		end
+	endcase
+end
 
 //img_reg
 always_ff @(posedge clk_50) begin
-	case(cs)
-		IDLE: img_reg[address] <= 0;
-		READ_IMG: begin
+	case(states)
+		5'b00000: img_reg[address] <= 0;
+		5'b00010: img_reg[address] <= 127'hffffffffffffffffffffffffffffffff;
+		5'b00011: begin
 			img_reg[address] <= data_reg[7:0];
 			img_reg[address+1] <= data_reg[15:8];
 			img_reg[address+2] <= data_reg[23:16];
@@ -217,7 +209,7 @@ always_ff @(posedge clk_50) begin
 			img_reg[address+14] <= data_reg[119:112];
 			img_reg[address+15] <= data_reg[127:120];
 		end
-		default: img_reg[address] <= 0;
+		default: img_reg[address] <= img_reg[address];
 	endcase
 end
 
@@ -237,11 +229,12 @@ assign reset_p = ~reset_n;
 
 
 //assign {in3, in2, in1, in4} = img_in;
-//assign {in3, in2, in1, in4} = result_fp;
-assign {in3, in2, in1, in4} = data_reg[31:0];
-//assign {in3, in2, in1, in4} = {img_reg[3],img_reg[2],img_reg[1],img_reg[0]};
+assign {in3, in2, in1, in4} = result_fp;
+//assign {in3, in2, in1, in4} = data_reg[31:0];
+//assign {in3, in2, in1, in4} = address;
+
 //assign LEDR[9] = read_done_fp;
-assign LEDR[8] = adone_fp;
+assign LEDR[9] = adone_fp;
 
 ////////////////////////////////////////////////////////////////////////////////
 // QSYS System Instantiation
@@ -301,7 +294,8 @@ sdram_reader #(
 	 .data_reg(data_reg),
 	 .read_done(read_done_fp),
 	 .acknowledge_flag(acknowledge_flag),
-	 .ack(LEDR[9])
+	 .states(states),
+	 .ack(LEDR[8])
     // VGA signals
 	 /*
     .read_address          (buffer_read_address),
