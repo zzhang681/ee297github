@@ -150,6 +150,9 @@ logic acknowledge_flag;
 
 logic [4:0] states;
 
+logic [31:0] data_comp;
+logic [3:0] index_comp, index_out_comp;
+
 
 
 /*
@@ -359,6 +362,12 @@ rise_edge_trigger u8(
 	.reset(reset_p),
 	.level(~KEY[1]),
 	.rise_edge(start_manual)
+);
+
+fp_compare u9(
+	.dataa(data_comp),
+	.index_in(index_comp),
+	.index_out(index_out_comp)
 );
 
 

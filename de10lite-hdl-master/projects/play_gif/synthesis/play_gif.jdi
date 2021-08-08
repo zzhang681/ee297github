@@ -1,6 +1,6 @@
 <sld_project_info>
   <project>
-    <hash md5_digest_80b="3bc08566af9cd8b5adf9"/>
+    <hash md5_digest_80b="59958337386c539e0b08"/>
   </project>
   <file_info>
     <file device="10M50DAF484C7G" path="play_gif.sof" usercode="0xFFFFFFFF"/>
@@ -152,7 +152,7 @@
   <sld_infos>
     <sld_info hpath="system:u0" name="u0">
       <assignment_values>
-        <assignment_value text="QSYS_NAME system HAS_SOPCINFO 1 GENERATION_ID 1627959333"/>
+        <assignment_value text="QSYS_NAME system HAS_SOPCINFO 1 GENERATION_ID 1628397128"/>
       </assignment_values>
       <parameters/>
     </sld_info>

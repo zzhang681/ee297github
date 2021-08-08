@@ -1,0 +1,26 @@
+module fp_compare (
+	data,
+	index_in,
+	index_out
+);	
+
+input	[31:0]	dataa;
+input [3:0]		index_in;
+logic	[31:0]	datab;
+logic	[3:0]	n;
+logic	[31:0]	result;
+output [3:0]	index_out;
+
+
+
+
+
+fp_compare f0 (
+		.dataa  (<connected-to-dataa>),  // s1.dataa
+		.datab  (<connected-to-datab>),  //   .datab
+		.n      (<connected-to-n>),      //   .n
+		.result (<connected-to-result>)  //   .result
+);
+	
+	
+endmodule

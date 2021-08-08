@@ -1,0 +1,28 @@
+Info: Starting: Create block symbol file (.bsf)
+Info: qsys-generate E:\WORK1\ee297\de10lite-hdl-master\de10lite-hdl-master\projects\play_gif\synthesis\fp_compare.qsys --block-symbol-file --output-directory=E:\WORK1\ee297\de10lite-hdl-master\de10lite-hdl-master\projects\play_gif\synthesis\fp_compare --family="MAX 10" --part=10M50DAF484C7G
+Progress: Loading synthesis/fp_compare.qsys
+Progress: Reading input file
+Progress: Adding nios_custom_instr_floating_point_2_combi_0 [altera_nios_custom_instr_floating_point_2_combi 18.1]
+Progress: Parameterizing module nios_custom_instr_floating_point_2_combi_0
+Progress: Building connections
+Progress: Parameterizing connections
+Progress: Validating
+Progress: Done reading input file
+Info: qsys-generate succeeded.
+Info: Finished: Create block symbol file (.bsf)
+Info: 
+Info: Starting: Create HDL design files for synthesis
+Info: qsys-generate E:\WORK1\ee297\de10lite-hdl-master\de10lite-hdl-master\projects\play_gif\synthesis\fp_compare.qsys --synthesis=VERILOG --output-directory=E:\WORK1\ee297\de10lite-hdl-master\de10lite-hdl-master\projects\play_gif\synthesis\fp_compare\synthesis --family="MAX 10" --part=10M50DAF484C7G
+Progress: Loading synthesis/fp_compare.qsys
+Progress: Reading input file
+Progress: Adding nios_custom_instr_floating_point_2_combi_0 [altera_nios_custom_instr_floating_point_2_combi 18.1]
+Progress: Parameterizing module nios_custom_instr_floating_point_2_combi_0
+Progress: Building connections
+Progress: Parameterizing connections
+Progress: Validating
+Progress: Done reading input file
+Info: fp_compare: Generating fp_compare "fp_compare" for QUARTUS_SYNTH
+Info: nios_custom_instr_floating_point_2_combi_0: "fp_compare" instantiated altera_nios_custom_instr_floating_point_2_combi "nios_custom_instr_floating_point_2_combi_0"
+Info: fp_compare: Done "fp_compare" with 2 modules, 6 files
+Info: qsys-generate succeeded.
+Info: Finished: Create HDL design files for synthesis

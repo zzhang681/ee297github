@@ -532,6 +532,8 @@ set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[93] -t
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[94] -to data_read_ob3[7] -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[95] -to data_read_ob3[8] -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[96] -to data_read_ob3[9] -section_id auto_signaltap_0
+set_global_assignment -name QIP_FILE fp_compare/synthesis/fp_compare.qip
+set_global_assignment -name SYSTEMVERILOG_FILE fp_compare/synthesis/fp_compare.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../hdl/uint_to_float.sv
 set_global_assignment -name VERILOG_FILE fall_edge_trigger.v
 set_global_assignment -name SYSTEMVERILOG_FILE clock_divider.sv

@@ -1,19 +1,15 @@
 
-State Machine - |play_gif2|cs
-Name cs.IDLE cs.READ_W cs.READ_IMG 
-cs.IDLE 0 0 0 
-cs.READ_IMG 1 0 1 
-cs.READ_W 1 1 0 
-
 State Machine - |play_gif2|fp_mac:u4|cs
-Name cs.ALL_DONE cs.OP_DONE cs.OP cs.READ_DONE cs.READ cs.READ_START cs.IDLE 
-cs.IDLE 0 0 0 0 0 0 0 
-cs.READ_START 0 0 0 0 0 1 1 
-cs.READ 0 0 0 0 1 0 1 
-cs.READ_DONE 0 0 0 1 0 0 1 
-cs.OP 0 0 1 0 0 0 1 
-cs.OP_DONE 0 1 0 0 0 0 1 
-cs.ALL_DONE 1 0 0 0 0 0 1 
+Name cs.ALL_DONE cs.RELU cs.RELU_START cs.OP_DONE cs.OP cs.READ_DONE cs.READ cs.READ_START cs.IDLE 
+cs.IDLE 0 0 0 0 0 0 0 0 0 
+cs.READ_START 0 0 0 0 0 0 0 1 1 
+cs.READ 0 0 0 0 0 0 1 0 1 
+cs.READ_DONE 0 0 0 0 0 1 0 0 1 
+cs.OP 0 0 0 0 1 0 0 0 1 
+cs.OP_DONE 0 0 0 1 0 0 0 0 1 
+cs.RELU_START 0 0 1 0 0 0 0 0 1 
+cs.RELU 0 1 0 0 0 0 0 0 1 
+cs.ALL_DONE 1 0 0 0 0 0 0 0 1 
 
 State Machine - |play_gif2|simple_mlp:u3|cs
 Name cs.OUT 
