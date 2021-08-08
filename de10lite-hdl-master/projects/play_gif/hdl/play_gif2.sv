@@ -152,6 +152,7 @@ logic [4:0] states;
 
 logic [31:0] data_comp;
 logic [3:0] index_comp, index_out_comp;
+logic start_comp;
 
 
 
@@ -365,6 +366,9 @@ rise_edge_trigger u8(
 );
 
 fp_compare u9(
+	.clk(clk_50),
+	.reset(reset_p),
+	.start(start_comp),
 	.dataa(data_comp),
 	.index_in(index_comp),
 	.index_out(index_out_comp)
