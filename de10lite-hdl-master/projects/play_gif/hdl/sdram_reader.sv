@@ -27,6 +27,7 @@ module sdram_reader #(
         input [INTERFACE_WIDTH_BITS-1:0]        interface_read_data,
         //output [INTERFACE_WIDTH_BITS-1:0]       interface_write_data,
         input                                   interface_acknowledge,
+		  input  next_img,
 		  input  read_img_start,
 		  input  mac_start,
 		  input  mac_done,
@@ -63,10 +64,10 @@ localparam INTERFACE_WIDTH_BYTES = INTERFACE_WIDTH_BITS / 8;
 
 //assign interface_byte_enable = (2 ** INTERFACE_WIDTH_BYTES) - 1;
 
-parameter final_address = 200688;//544;		//200688, 200704		//op# = address / 16
+parameter final_address = 7000;//200688;//544;		//200688, 200704		//op# = address / 16
 
-parameter img_address = 204000;			//204000-204783
-parameter img_address_fin = img_address + 783;
+parameter img_address = 204000;			//204000-204783-205079 (addr 205088)
+parameter img_address_fin = img_address + 783 + 296 - 40;
 
 
 always_ff @(posedge clk or negedge reset) begin
@@ -87,7 +88,8 @@ enum bit[3:0] {
 	READ_DONE,
 	OP,
 	OP_DONE,
-	ALL_DONE
+	ALL_DONE,
+	READ_IMG_STORE
 } cs, ns;
 
 /*
@@ -103,6 +105,7 @@ parameter READ_DONE = 5'b01000;
 parameter OP = 5'b01001;
 parameter OP_DONE = 5'b01010;
 parameter ALL_DONE = 5'b01011;
+read_img_store = 5'b01100
 
 logic [4:0] cs, ns;
 */
@@ -155,7 +158,12 @@ always_comb begin
 			else ns = READ_IMG;
 		end
 		
-		READ_IMG_DONE: ns = READ_IMG_START2;
+		READ_IMG_DONE: ns = READ_IMG_STORE;
+		
+		READ_IMG_STORE: begin
+			if(next_img) ns = READ_IMG_START2;
+			else ns = READ_IMG_STORE;
+		end
 		
 		READ_IMG_FIN: begin 
 			if(mac_start) ns = READ_START;
