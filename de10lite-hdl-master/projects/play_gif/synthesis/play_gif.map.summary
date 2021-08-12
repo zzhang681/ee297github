@@ -1,16 +1,16 @@
-Analysis & Synthesis Status : Successful - Thu Aug 12 00:48:44 2021
+Analysis & Synthesis Status : Successful - Sat Aug 07 21:32:47 2021
 Quartus Prime Version : 18.1.0 Build 625 09/12/2018 SJ Lite Edition
 Revision Name : play_gif
 Top-level Entity Name : play_gif2
 Family : MAX 10
-Total logic elements : 16,322
-    Total combinational functions : 8,258
-    Dedicated logic registers : 9,729
-Total registers : 9729
+Total logic elements : 6,644
+    Total combinational functions : 4,299
+    Dedicated logic registers : 4,234
+Total registers : 4234
 Total pins : 214
 Total virtual pins : 0
 Total memory bits : 12,928
-Embedded Multiplier 9-bit elements : 0
+Embedded Multiplier 9-bit elements : 4
 Total PLLs : 1
 UFM blocks : 0
 ADC blocks : 0

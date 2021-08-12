@@ -1,18 +1,18 @@
-Fitter Status : Successful - Thu Aug 12 00:50:06 2021
+Fitter Status : Successful - Sat Aug 07 21:33:28 2021
 Quartus Prime Version : 18.1.0 Build 625 09/12/2018 SJ Lite Edition
 Revision Name : play_gif
 Top-level Entity Name : play_gif2
 Family : MAX 10
 Device : 10M50DAF484C7G
 Timing Models : Final
-Total logic elements : 12,923 / 49,760 ( 26 % )
-    Total combinational functions : 8,279 / 49,760 ( 17 % )
-    Dedicated logic registers : 9,688 / 49,760 ( 19 % )
-Total registers : 9757
+Total logic elements : 6,148 / 49,760 ( 12 % )
+    Total combinational functions : 4,321 / 49,760 ( 9 % )
+    Dedicated logic registers : 4,193 / 49,760 ( 8 % )
+Total registers : 4262
 Total pins : 214 / 360 ( 59 % )
 Total virtual pins : 0
 Total memory bits : 12,928 / 1,677,312 ( < 1 % )
-Embedded Multiplier 9-bit elements : 0 / 288 ( 0 % )
+Embedded Multiplier 9-bit elements : 4 / 288 ( 1 % )
 Total PLLs : 1 / 4 ( 25 % )
 UFM blocks : 0 / 1 ( 0 % )
 ADC blocks : 0 / 2 ( 0 % )

@@ -139,40 +139,33 @@ assign datain = {8'h02, 8'h01};
 
 //FP part test
 logic [31:0] result_fp;
-logic start_fp, done_fp, reset_p, done_bias_fp;				//start goes high for a cycle every 1 SECOND
+logic start_fp, done_fp, reset_p;				//start goes high for a cycle every 1 SECOND
 logic clk_slow;
 logic read_done_fp;
 logic next_in_fp;
 
-logic [31:0] din_fp, din_bias_fp;
+logic [31:0] din_fp;
 logic adone_fp;
 logic acknowledge_flag;
 
-logic [4:0] states, states_fp;
+logic [4:0] states;
 
 logic [31:0] data_comp;
 logic [3:0] index_comp, index_out_comp;
 logic start_comp;
 
-logic [90:0][31:0] bias_reg;
-logic [7:0] address_bias, address_bias_next;
-logic [31:0] bias_check;
-
-always_ff @(posedge clk_50) begin
-	if(reset_p) address_bias <= 0;
-	else address_bias <= address_bias_next;
-end
-
-//fifo
-logic full_ff, empty_ff, write_ff, read_ff, next_img;
-logic [3:0] next_img_count;
-logic [7:0] img_in_ff, img_out_ff;
-logic [127:0] img_reg;
 
 
-
+/*
+union packed {
+	logic [783:0][7:0] twod;
+	logic [6271:0] oned;
+} img_reg;
+*/
+logic [783:0][7:0] img_reg;
 logic [9:0] address, address_next;
 
+logic [7:0] img_in;
 logic [31:0] img_fp;
 logic start_manual;
 
@@ -197,188 +190,53 @@ always_comb begin
 	endcase
 end
 
-//write_ff
-always_ff @(posedge clk_50) begin
-	if(reset_p) write_ff <= 0;
-	else begin
-		case(states)
-			5'b01100: begin
-				if(interface_address < 204784) begin
-					write_ff <= 1;
-				end
-			end
-			default: write_ff <= 0;
-		endcase
-	end
-end
-
-//read_ff
-assign read_ff = start_fp;//next_in_fp;
-
-//next_img
-assign next_img = next_img_count == 15 ? 1:0;
-
-//next_img_count
-always_ff @(posedge clk_50) begin
-	if(reset_p) next_img_count <= 0;
-	else begin
-		if(states == 5'b01100 && next_img_count < 15) next_img_count <= next_img_count + 1;
-		else next_img_count <= 0;
-	end
-end
-
-//img_in_ff
-always_comb begin
-	img_in_ff = 0;
-	begin
-		case(next_img_count)
-			0: img_in_ff = data_reg[7:0];
-			1: img_in_ff = data_reg[15:8];
-			2: img_in_ff = data_reg[23:16];
-			3: img_in_ff = data_reg[31:24];
-			4: img_in_ff = data_reg[39:32];
-			5: img_in_ff = data_reg[47:40];
-			6: img_in_ff = data_reg[55:48];
-			7: img_in_ff = data_reg[63:56];
-			8: img_in_ff = data_reg[71:64];
-			9: img_in_ff = data_reg[79:72];
-			10: img_in_ff = data_reg[87:80];
-			11: img_in_ff = data_reg[95:88];
-			12: img_in_ff = data_reg[103:96];
-			13: img_in_ff = data_reg[111:104];
-			14: img_in_ff = data_reg[119:112];
-			15: img_in_ff = data_reg[127:120];
-		endcase
-	end
-end
-
-always_comb begin
-	address_bias_next = address_bias;
-	case(states)
-		5'b00000: begin 
-			if(address_bias_next <= 90) address_bias_next = address_bias + 1;
-			else address_bias_next = 0;
-		end
-		5'b00001: address_bias_next = 0;
-		5'b00100: begin
-			if(interface_address >= 204784) address_bias_next = address_bias + 4;
-		end
-		default: begin
-			case(states_fp)
-				5'b00111: address_bias_next = 4;
-				5'b01001: address_bias_next = address_bias + 1;
-				default: address_bias_next = address_bias;
-			endcase
-		end
-	endcase
-end
-
-//bias_reg
-always_ff @(posedge clk_50) begin
-	case(states)
-		5'b00000: bias_reg[address_bias] <= 0;
-		5'b00011: begin
-			if(interface_address >= 204784) begin 
-				//if(acknowledge_flag) begin
-				/*
-				if(address_bias == 8) begin 
-					bias_reg[8] <= 0;
-					bias_reg[address_bias+1] <= data_reg[63:32];
-					bias_reg[address_bias+2] <= data_reg[95:64];
-					bias_reg[address_bias+3] <= data_reg[127:96];
-				end
-				else*/ 
-				begin
-				bias_reg[address_bias] <= data_reg[31:0];
-				bias_reg[address_bias+1] <= data_reg[63:32];
-				bias_reg[address_bias+2] <= data_reg[95:64];
-				bias_reg[address_bias+3] <= data_reg[127:96];
-				end
-				//end
-			end
-		end
-	endcase
-end
-
-assign din_bias_fp = bias_reg[address_bias];
-
-
-
 //img_reg
-/*
 always_ff @(posedge clk_50) begin
 	case(states)
 		5'b00000: img_reg[address] <= 0;
-		5'b00010: img_reg[address] <= 0;
+		5'b00010: img_reg[address] <= 127'hffffffffffffffffffffffffffffffff;
 		5'b00011: begin
-			if(interface_address < 204784) begin
-			//if(acknowledge_flag) begin
-				img_reg[address] <= data_reg[7:0];
-				img_reg[address+1] <= data_reg[15:8];
-				img_reg[address+2] <= data_reg[23:16];
-				img_reg[address+3] <= data_reg[31:24];
-				img_reg[address+4] <= data_reg[39:32];
-				img_reg[address+5] <= data_reg[47:40];
-				img_reg[address+6] <= data_reg[55:48];
-				img_reg[address+7] <= data_reg[63:56];
-				img_reg[address+8] <= data_reg[71:64];
-				img_reg[address+9] <= data_reg[79:72];
-				img_reg[address+10] <= data_reg[87:80];
-				img_reg[address+11] <= data_reg[95:88];
-				img_reg[address+12] <= data_reg[103:96];
-				img_reg[address+13] <= data_reg[111:104];
-				img_reg[address+14] <= data_reg[119:112];
-				img_reg[address+15] <= data_reg[127:120];
-			end
-			//end
+			img_reg[address] <= data_reg[7:0];
+			img_reg[address+1] <= data_reg[15:8];
+			img_reg[address+2] <= data_reg[23:16];
+			img_reg[address+3] <= data_reg[31:24];
+			img_reg[address+4] <= data_reg[39:32];
+			img_reg[address+5] <= data_reg[47:40];
+			img_reg[address+6] <= data_reg[55:48];
+			img_reg[address+7] <= data_reg[63:56];
+			img_reg[address+8] <= data_reg[71:64];
+			img_reg[address+9] <= data_reg[79:72];
+			img_reg[address+10] <= data_reg[87:80];
+			img_reg[address+11] <= data_reg[95:88];
+			img_reg[address+12] <= data_reg[103:96];
+			img_reg[address+13] <= data_reg[111:104];
+			img_reg[address+14] <= data_reg[119:112];
+			img_reg[address+15] <= data_reg[127:120];
 		end
 		default: img_reg[address] <= img_reg[address];
 	endcase
 end
-*/
 
-//assign img_in = img_reg[address];
-/*
 always_ff @(posedge clk_50) begin
 	if(reset_p) img_in <= 0;
 	else begin
-		if(start_manual) img_in <= img_reg[0];
+		if(start_manual) img_in <= 0;
 		else begin
-			if(next_in_fp) begin 
-				img_in <= img_reg[address];
-			end else img_in <= img_in;
+			if(next_in_fp) img_in <= img_in + 1;
+			else img_in <= img_in;
 		end
 	end
 end
-*/
+
 assign din_fp = 32'h3f000000;			//0.5
 assign reset_p = ~reset_n;
-//assign bias_check = bias_reg[63];	//4 - 77  4-67, 68-77
-/*
-always_latch begin
-	if(reset_p) bias_check = 0;
-	else if(address_bias == 30) bias_check = din_bias_fp;
-end
-*/
-logic [9:0] time_counter;
 
-always_ff @(posedge clk_50) begin
-	if(reset_p) time_counter <= 0;
-	else begin
-		if(start_fp) begin 
-			if(time_counter < 784) time_counter <= time_counter + 1;
-			else time_counter <= 0;
-		end else time_counter <= time_counter;
-	end
-end
-//assign {in3, in2, in1, in4} = address_bias;
-//assign {in3, in2, in1, in4} = bias_check;
-//assign {in3, in2, in1, in4} = interface_address;
-//assign {in3, in2, in1, in4} = result_fp;
+
+//assign {in3, in2, in1, in4} = img_in;
+assign {in3, in2, in1, in4} = result_fp;
 //assign {in3, in2, in1, in4} = data_reg[31:0];
 //assign {in3, in2, in1, in4} = address;
-assign in4 = img_out_ff;
-assign {in3, in2, in1} = time_counter;
+
 //assign LEDR[9] = read_done_fp;
 assign LEDR[9] = adone_fp;
 
@@ -434,7 +292,6 @@ sdram_reader #(
     //.interface_write_data  (interface_write_data),
     .interface_acknowledge (interface_acknowledge),
     .interface_read_data   (interface_read_data),
-	 .next_img(next_img),
 	 .read_img_start(start_fp),
 	 .mac_start(start_manual),
 	 .mac_done(done_fp),
@@ -472,15 +329,12 @@ fp_mac u4 (
 		.clk       (clk_50),       // s1.clk
 		.data		  (data_reg),
 		.din		  (img_fp),
-		.din_bias  (din_bias_fp),
 		.datavalid (acknowledge_flag),
 		.reset     (reset_p),     //   .reset
 		.read_done (read_done_fp),
 		.start     (start_manual),     //   .start
 		.done      (done_fp),      //   .done
-		.done_bias (done_bias_fp),
 		.result    (result_fp),     //   .result
-		.states	  (states_fp),
 		.next_in   (next_in_fp),
 		.adone	  (adone_fp)
 );
@@ -500,7 +354,7 @@ rise_edge_trigger u6(
 
 
 uint_to_float u7(
-	.i_uint8_int(img_out_ff),
+	.i_uint8_int(img_in),
 	.o_fp32_hex(img_fp)
 );
 
@@ -518,17 +372,6 @@ fp_compare u9(
 	.dataa(data_comp),
 	.index_in(index_comp),
 	.index_out(index_out_comp)
-);
-
-img_fifo u10(
-	.clk(clk_50), 
-	.reset(reset_p), 
-	.full(full_ff), 
-	.empty(empty_ff), 
-	.wn(write_ff), 
-	.rn(read_ff), 
-	.datain(img_in_ff), 
-	.dataout(img_out_ff)
 );
 
 
