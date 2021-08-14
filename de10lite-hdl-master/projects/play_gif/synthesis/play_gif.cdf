@@ -4,7 +4,7 @@ JedecChain;
 	DefaultMfr(6E);
 
 	P ActionCode(Cfg)
-		Device PartName(10M50DAF484) Path("E:/WORK1/ee297/de10lite-hdl-master/de10lite-hdl-master/projects/play_gif/synthesis/") File("play_gif.sof") MfrSpec(OpMask(1));
+		Device PartName(10M50DAF484) Path("E:/e297/de10lite-hdl-master/projects/play_gif/synthesis/") File("play_gif.sof") MfrSpec(OpMask(1));
 
 ChainEnd;
 

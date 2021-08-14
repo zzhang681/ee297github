@@ -1,15 +1,18 @@
 
 State Machine - |play_gif2|fp_mac:u4|cs
-Name cs.ALL_DONE cs.RELU cs.RELU_START cs.OP_DONE cs.OP cs.READ_DONE cs.READ cs.READ_START cs.IDLE 
-cs.IDLE 0 0 0 0 0 0 0 0 0 
-cs.READ_START 0 0 0 0 0 0 0 1 1 
-cs.READ 0 0 0 0 0 0 1 0 1 
-cs.READ_DONE 0 0 0 0 0 1 0 0 1 
-cs.OP 0 0 0 0 1 0 0 0 1 
-cs.OP_DONE 0 0 0 1 0 0 0 0 1 
-cs.RELU_START 0 0 1 0 0 0 0 0 1 
-cs.RELU 0 1 0 0 0 0 0 0 1 
-cs.ALL_DONE 1 0 0 0 0 0 0 0 1 
+Name cs.RELU cs.RELU_START cs.BIAS_DONE cs.BIAS cs.BIAS_START cs.OP_DONE cs.OP cs.READ_DONE cs.READ cs.READ_START cs.IDLE cs.ALL_DONE 
+cs.IDLE 0 0 0 0 0 0 0 0 0 0 0 0 
+cs.READ_START 0 0 0 0 0 0 0 0 0 1 1 0 
+cs.READ 0 0 0 0 0 0 0 0 1 0 1 0 
+cs.READ_DONE 0 0 0 0 0 0 0 1 0 0 1 0 
+cs.OP 0 0 0 0 0 0 1 0 0 0 1 0 
+cs.OP_DONE 0 0 0 0 0 1 0 0 0 0 1 0 
+cs.BIAS_START 0 0 0 0 1 0 0 0 0 0 1 0 
+cs.BIAS 0 0 0 1 0 0 0 0 0 0 1 0 
+cs.BIAS_DONE 0 0 1 0 0 0 0 0 0 0 1 0 
+cs.RELU_START 0 1 0 0 0 0 0 0 0 0 1 0 
+cs.RELU 1 0 0 0 0 0 0 0 0 0 1 0 
+cs.ALL_DONE 0 0 0 0 0 0 0 0 0 0 1 1 
 
 State Machine - |play_gif2|simple_mlp:u3|cs
 Name cs.OUT 
@@ -17,19 +20,18 @@ cs.IDLE 0
 cs.OUT 1 
 
 State Machine - |play_gif2|sdram_reader:u2|cs
-Name cs.ALL_DONE cs.OP_DONE cs.OP cs.READ_DONE cs.READ cs.READ_START cs.READ_IMG_FIN cs.READ_IMG_DONE cs.READ_IMG cs.READ_IMG_START2 cs.READ_IMG_START cs.IDLE 
-cs.IDLE 0 0 0 0 0 0 0 0 0 0 0 0 
-cs.READ_IMG_START 0 0 0 0 0 0 0 0 0 0 1 1 
-cs.READ_IMG_START2 0 0 0 0 0 0 0 0 0 1 0 1 
-cs.READ_IMG 0 0 0 0 0 0 0 0 1 0 0 1 
-cs.READ_IMG_DONE 0 0 0 0 0 0 0 1 0 0 0 1 
-cs.READ_IMG_FIN 0 0 0 0 0 0 1 0 0 0 0 1 
-cs.READ_START 0 0 0 0 0 1 0 0 0 0 0 1 
-cs.READ 0 0 0 0 1 0 0 0 0 0 0 1 
-cs.READ_DONE 0 0 0 1 0 0 0 0 0 0 0 1 
-cs.OP 0 0 1 0 0 0 0 0 0 0 0 1 
-cs.OP_DONE 0 1 0 0 0 0 0 0 0 0 0 1 
-cs.ALL_DONE 1 0 0 0 0 0 0 0 0 0 0 1 
+Name cs.ALL_DONE cs.OP_DONE cs.READ_DONE cs.READ cs.READ_START cs.READ_IMG_FIN cs.READ_IMG_DONE cs.READ_IMG cs.READ_IMG_START2 cs.READ_IMG_START cs.IDLE 
+cs.IDLE 0 0 0 0 0 0 0 0 0 0 0 
+cs.READ_IMG_START 0 0 0 0 0 0 0 0 0 1 1 
+cs.READ_IMG_START2 0 0 0 0 0 0 0 0 1 0 1 
+cs.READ_IMG 0 0 0 0 0 0 0 1 0 0 1 
+cs.READ_IMG_DONE 0 0 0 0 0 0 1 0 0 0 1 
+cs.READ_IMG_FIN 0 0 0 0 0 1 0 0 0 0 1 
+cs.READ_START 0 0 0 0 1 0 0 0 0 0 1 
+cs.READ 0 0 0 1 0 0 0 0 0 0 1 
+cs.READ_DONE 0 0 1 0 0 0 0 0 0 0 1 
+cs.OP_DONE 0 1 0 0 0 0 0 0 0 0 1 
+cs.ALL_DONE 1 0 0 0 0 0 0 0 0 0 1 
 
 State Machine - |play_gif2|system:u0|system_sdram_controller:sdram_controller|m_next
 Name m_next.010000000 m_next.000010000 m_next.000001000 m_next.000000001 

@@ -7,27 +7,38 @@ module fp_mac (
 		input  wire        clk,       // s1.clk
 		input  [127:0]		 data,
 		input  wire [31:0] din,			//input(image)
+		input  wire	[31:0] din_bias,
 		input					 datavalid,
 		input  wire        reset,     //   .reset
 		input  wire			 read_done,
 		input  wire        start,     //   .start
 		output wire        done,      //   .done
+		output wire			 done_bias,
 		output wire [31:0] result,     //   .result
+		output wire [4:0] states,
 		output wire next_in,
 		output adone
 );
 
-enum bit[3:0] {
-	IDLE,
-	READ_IMG,
-	READ_START,
-	READ,
-	READ_DONE,
-	OP,
-	OP_DONE,
-	RELU_START,
-	RELU,
-	ALL_DONE
+enum bit[4:0] {
+	IDLE,				//00000
+	READ_IMG,		//00001
+	READ_START,		//00010
+	READ,				//00011
+	READ_DONE,		//00100
+	OP,				//00101
+	OP_DONE,			//00110
+	BIAS_START,		//00111
+	BIAS,				//01000
+	BIAS_DONE,		//01001
+	RELU_START,		//01010
+	RELU,				//01011
+	HO_READ_START,		//01100
+	HO_READ,				//01101
+	HO_READ_DONE,		//01110
+	HO_OP,				//01111
+	HO_OP_DONE,			//10000
+	ALL_DONE			//10001
 } cs, ns;
 
 //typedef union packed{
@@ -35,7 +46,14 @@ bit [15:0][127:0] hidden;				//16x128
 //logic [63:0][31:0] h;
 //} hidden_reg;
 
+assign states = cs;
 //hidden_reg hidden;
+
+
+logic [31:0] dataa_bias, datab_bias, result_bias;
+logic start_bias;
+logic [7:0] count_bias;
+
 
 logic [31:0] dataa1, datab1, result_mul1, result_add1;
 logic [31:0] dataa2, datab2, result_mul2, result_add2;
@@ -48,6 +66,8 @@ logic done_mul2, start_add2, done_add2;
 logic done_mul3, start_add3, done_add3;
 logic done_mul4, start_add4, done_add4;
 logic done_flag1, done_flag2, done_flag3, done_flag4;
+
+//logic []
 
 logic [127:0] data_reg, result_reg;
 //logic [2:0] n_mul, n_add;
@@ -78,13 +98,21 @@ assign done = done_flag1 && done_flag2 && done_flag3 && done_flag4;
 logic [7:0] count;
 
 //count 9
-always @(posedge clk or posedge reset) begin
+always @(posedge clk) begin
 	if(reset) count <= 0;
 	else begin
 		case(cs)
 			OP: count <= count + 1;
 			default: count <= 0;
 		endcase
+	end
+end
+
+//count_bias
+always_ff @(posedge clk) begin
+	if(reset) count_bias <= 0;
+	else begin
+		if(cs == BIAS_DONE && count_bias < 64) count_bias <= count_bias + 1;
 	end
 end
 
@@ -112,6 +140,7 @@ result: 0.05+0.1+0.15+0.2+0.25=0.75 (3F400000)
 9. how to input image?           (Finished)
 	address 204000 - 204783
 10. address of image does not increase
+10.5. add bias
 11. add ReLU
 */
 
@@ -126,22 +155,43 @@ always_comb begin
 		READ_START: ns = READ;
 		READ: begin
 			if(datavalid) ns = READ_DONE;
-			else if(read_done) ns = ALL_DONE;
+			else if(read_done) ns = ALL_DONE;//RELU_START;
 			else ns = READ;
 		end
 		READ_DONE: ns = OP;
 		OP: begin
 			if(done) begin
-				if(read_done) ns = RELU_START;
+				if(read_done) ns = ALL_DONE;//RELU_START;
 				else ns = OP_DONE;
 			end else ns = OP;
 		end
 		OP_DONE: ns = READ;
+		BIAS_START: ns = BIAS;
+		BIAS: begin
+			if(done_bias) ns = BIAS_DONE;
+			else ns = BIAS;
+		end
+		BIAS_DONE: begin
+			//ns = BIAS_DONE;
+			
+			if(count_bias >= 64) ns = ALL_DONE;//RELU_START;
+			else ns = BIAS;
+			
+		end
 		RELU_START: ns = RELU;
 		RELU: begin
 			if(address == 15) ns = ALL_DONE;
 			else ns = RELU;
 		end
+		/*
+		HO_READ_START: ns = HO_READ;
+		HO_READ: begin
+			
+		end
+		HO_READ_DONE,		//01110
+		HO_OP,				//01111
+		HO_OP_DONE,			//10000
+		*/
 		ALL_DONE: ns = ALL_DONE;
 		default: ns = IDLE;
 	endcase
@@ -158,6 +208,7 @@ assign start_add1 = done_mul1;
 assign start_add2 = done_mul2;
 assign start_add3 = done_mul3;
 assign start_add4 = done_mul4;
+assign start_bias = (cs == BIAS_START) || (cs == BIAS_DONE) ? 1:0;
 
 //address
 always_ff @(posedge clk) begin
@@ -172,15 +223,21 @@ always_comb begin
 	address_next = address;
 	case(cs)
 		IDLE: begin
-			if(address < 15) address_next = address + 1;
-			else address_next = 0;
-			if(ns == READ_START) address_next = 0;
+			address_next = 0;
+		end
+		BIAS_START: address_next = 0;
+		BIAS_DONE: begin
+			if(count_bias < 64) begin
+				if((count_bias%4) == 3) address_next = address + 1;
+				else address_next = address;
+			end
 		end
 		RELU_START: address_next = 0;
 		RELU: begin
 			if(address < 15) address_next = address + 1;
 			else address_next = 0;
 		end
+		
 		default: begin
 			if(done) begin 
 				if(address < 15) address_next = address + 1;
@@ -190,7 +247,7 @@ always_comb begin
 	endcase
 end
 
-always @(posedge clk or posedge reset) begin
+always @(posedge clk) begin
 	if(reset) begin
 		done_flag1 <= 0;
 		done_flag2 <= 0;
@@ -267,10 +324,44 @@ end
 //hidden
 
 always_ff @(posedge clk) begin
-	if(reset) hidden[address] <= 0;
+	if(reset) begin
+			hidden[0] <= 0;
+			hidden[1] <= 0;
+			hidden[2] <= 0;
+			hidden[3] <= 0;
+			hidden[4] <= 0;
+			hidden[5] <= 0;
+			hidden[6] <= 0;
+			hidden[7] <= 0;
+			hidden[8] <= 0;
+			hidden[9] <= 0;
+			hidden[10] <= 0;
+			hidden[11] <= 0;
+			hidden[12] <= 0;
+			hidden[13] <= 0;
+			hidden[14] <= 0;
+			hidden[15] <= 0;
+		end
 	else begin
 		case(cs)
-		IDLE: hidden[address] <= 0;
+		IDLE: begin
+			hidden[0] <= 0;
+			hidden[1] <= 0;
+			hidden[2] <= 0;
+			hidden[3] <= 0;
+			hidden[4] <= 0;
+			hidden[5] <= 0;
+			hidden[6] <= 0;
+			hidden[7] <= 0;
+			hidden[8] <= 0;
+			hidden[9] <= 0;
+			hidden[10] <= 0;
+			hidden[11] <= 0;
+			hidden[12] <= 0;
+			hidden[13] <= 0;
+			hidden[14] <= 0;
+			hidden[15] <= 0;
+		end
 		READ_START: begin
 			hidden[0] <= 0;
 			hidden[1] <= 0;
@@ -289,6 +380,16 @@ always_ff @(posedge clk) begin
 			hidden[14] <= 0;
 			hidden[15] <= 0;
 		end
+		/*
+		BIAS_DONE: begin
+			case(count_bias % 4)
+				0: hidden[address][31:0] <= result_bias;
+				1: hidden[address][63:32] <= result_bias;
+				2: hidden[address][95:64] <= result_bias;
+				3: hidden[address][127:96] <= result_bias;
+			endcase
+		end
+		*/
 		RELU: begin
 			if(hidden[address][31]) hidden[address][31:0] <= 0;
 			if(hidden[address][63]) hidden[address][63:32] <= 0;
@@ -305,6 +406,26 @@ always_ff @(posedge clk) begin
 	end
 end
 
+assign dataa_bias = din_bias;
+
+//datab_bias
+
+always_ff @(posedge clk) begin
+	if(reset) datab_bias <= 0;
+	else begin
+		//case(cs)
+			//BIAS_START: begin
+				case(count_bias % 4)
+					0: datab_bias <= hidden[address][31:0];
+					1: datab_bias <= hidden[address][63:32];
+					2: datab_bias <= hidden[address][95:64];
+					3: datab_bias <= hidden[address][127:96];
+				endcase
+			//end
+		//endcase
+	end
+end
+
 //assign hidden[13][31:0] = 32'h12345678;
 
 // ----------------------------------------------------------------- //
@@ -317,7 +438,7 @@ always_ff @(posedge clk) begin
 	if(reset) result <= 0;
 	else begin
 		if(cs == IDLE) result <= 0; 
-		else if(done) result <= hidden[0][31:0];//result_add1;
+		else if(done) result <= dataa1;//hidden[0][31:0];//dataa1;//result_add1;//din;//hidden[0][31:0];//result_add1;
 		else result <= result;
 	end
 end
@@ -333,7 +454,7 @@ always_ff @(posedge clk) begin
 	end
 end
 */
-//assign result = address;
+//assign result = result_bias;//count_bias;//address;
 
 
 // ----------------------------------------------------------------- //
@@ -341,7 +462,7 @@ end
 
 
 //cs
-always_ff @(posedge clk or posedge reset) begin
+always_ff @(posedge clk) begin
 	if(reset) cs <= IDLE;
 	else cs <= ns;
 end
@@ -485,6 +606,25 @@ fpoint2_multi #(
 		.start     (start_add4),     //   .start
 		.done      (done_add4),      //   .done
 		.result    (result_add4)     //   .result
+	);
+
+//for the bias
+
+fpoint2_multi #(
+		.arithmetic_present (1),
+		.root_present       (1),
+		.conversion_present (1)
+	) nios_custom_instr_floating_point_2_multi_9 (
+		.clk       (clk),       // s1.clk
+		.clk_en    (clk_en),    //   .clk_en
+		.dataa     (dataa_bias),     //   .dataa
+		.datab     (datab_bias),     //   .datab
+		.n         (n_add),         //   .n
+		.reset     (reset),     //   .reset
+		.reset_req (reset_req), //   .reset_req
+		.start     (start_bias),     //   .start
+		.done      (done_bias),      //   .done
+		.result    (result_bias)     //   .result
 	);
 
 

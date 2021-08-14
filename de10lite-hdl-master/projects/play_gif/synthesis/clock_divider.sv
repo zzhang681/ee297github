@@ -7,7 +7,7 @@ input reset;
 output clk_out;
 
 parameter WIDTH = 32; // Width of the register required
-parameter N = 25000000;// We will divide by 12 for example in this case
+parameter N = 12500000;// We will divide by 12 for example in this case
 //10s: 250_000_000
 //1s: 25_000_000
 //0.5s: 12_500_000
