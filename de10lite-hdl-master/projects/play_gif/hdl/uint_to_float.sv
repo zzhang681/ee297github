@@ -5,8 +5,8 @@ module uint_to_float (
 
 //convert 8-bit input to 32-bit output
 //example: input: 8'h01
-//  1/256 = 0.00390625 -> 32'h3B800000
-//  input(real number) / 256 -> result convert to floating point
+//  1/255 = 0.003921569 -> 32'h3B808081
+	//  input(real number) / 255 -> result convert to floating point
 //https://www.binaryconvert.com/convert_float.html?decimal=048046048048051057048054050053   Online converter
 //Use combinational logic
 
