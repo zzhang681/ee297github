@@ -64,6 +64,13 @@ module avalonbridge_pipe_stage_buffered
     //Handle bank valids
     always @(posedge i_axis_aclk)
     begin
+			/*
+			if(!i_axis_aresetn) begin
+				bank_a_valid <= 1'b0;
+				//bank_b_valid <= 1'b0;
+			end else
+		*/
+			begin
         if(i_s_axis_tvalid & o_s_axis_tready & write_bank_a_nb)
             bank_a_valid <= 1'b1;
         else if(o_m_axis_tvalid & i_m_axis_tready & read_bank_a_nb)
@@ -73,6 +80,7 @@ module avalonbridge_pipe_stage_buffered
             bank_b_valid <= 1'b1;
         else if(o_m_axis_tvalid & i_m_axis_tready & (!read_bank_a_nb))
             bank_b_valid <= 1'b0;
+			end
     end
     
 

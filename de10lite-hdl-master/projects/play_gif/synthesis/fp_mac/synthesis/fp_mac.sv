@@ -12,18 +12,22 @@ module fp_mac (
 		input  wire        reset,     //   .reset
 		input  wire			 read_done,
 		input  wire        start,     //   .start
-		output wire        done,      //   .done
+		input 	[9:0]		 i_addr_r,
+		input  wire [127:0] interface_address,
+		input  wire 			empty,
+		output logic        ready,      //   .ready
 		output wire			 done_bias,
 		output wire [31:0] result,     //   .result
 		output wire [4:0] states,
 		output wire next_in,
-		output adone
+		output adone,
+		output rise_edge_check
 );
 
 enum bit[4:0] {
 	IDLE,				//00000
 	READ_IMG,		//00001
-	READ_START,		//00010
+	OP_START,		//00010
 	READ,				//00011
 	READ_DONE,		//00100
 	OP,				//00101
@@ -34,15 +38,14 @@ enum bit[4:0] {
 	RELU_START,		//01010
 	RELU,				//01011
 	HO_READ_START,		//01100
-	HO_READ,				//01101
-	HO_READ_DONE,		//01110
-	HO_OP,				//01111
+	HO_OP_START,				//01101
+	HO_OP,		//01110
+	//HO_OP,				//01111
 	HO_OP_DONE,			//10000
 	ALL_DONE			//10001
 } cs, ns;
 
 //typedef union packed{
-bit [15:0][127:0] hidden;				//16x128
 //logic [63:0][31:0] h;
 //} hidden_reg;
 
@@ -53,6 +56,14 @@ assign states = cs;
 logic [31:0] dataa_bias, datab_bias, result_bias;
 logic start_bias;
 logic [7:0] count_bias;
+
+logic [5:0] count_ho;
+logic [63:0] wdata_ho,rdata_ho;
+logic [3:0] addr_w_ho,addr_r_ho;
+logic write_ho, read_ho;
+logic [127:0] weight_reg_ho;
+logic highbit_ho;
+
 
 
 logic [31:0] dataa1, datab1, result_mul1, result_add1;
@@ -67,17 +78,30 @@ logic done_mul3, start_add3, done_add3;
 logic done_mul4, start_add4, done_add4;
 logic done_flag1, done_flag2, done_flag3, done_flag4;
 
+logic [127:0] x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15;
+logic [127:0] r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15;
+logic [3:0] n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15;
+logic [3:0] acc_en0;
+
 //logic []
 
-logic [127:0] data_reg, result_reg;
+logic [127:0] data_read, data_write;
+
+logic we, re;
+
 //logic [2:0] n_mul, n_add;
 logic clk_en, reset_req;
 logic [3:0] address, address_next;		//address for hidden (0-63)
+logic address_hidden_read;
 
-logic edge_det_READ, start_mul;
+logic next_in_edge, done_re_level;
+logic start_mul;
+logic next_address_ready;
 assign edge_det_READ = (cs == READ) ? 1:0;
 assign adone = (cs == ALL_DONE) ? 1:0;
-assign next_in = (address == 15 && cs == OP_DONE) ? 1:0;
+assign next_in = (address == 15) & (cs == OP_DONE);//(address == 15 && (done_flag1 && done_flag2 && done_flag3 &&done_flag4)) ? 1:0;
+
+
 //assign reset_req = !reset;//(cs == IDLE) ? 1:0;
 
 /*
@@ -93,16 +117,39 @@ parameter n_add = 3'b101;
 
 assign clk_en = 1'b1;
 
-assign done = done_flag1 && done_flag2 && done_flag3 && done_flag4;
+always @(*) begin
+	ready = 0;
+	begin
+		case(cs)
+			IDLE: ready = 0;
+			OP_START: ready = 1;
+			OP: begin 
+					ready = 0; 
+			end
+			HO_OP_START: ready = 1;
+			HO_OP: ready = 0;
+			//OP_DONE: ready = 1;
+			default: ready = 0;
+		endcase
+	end
+end
+	
+logic [3:0] count;
 
-logic [7:0] count;
-
-//count 9
+//count 5 cycles
 always @(posedge clk) begin
 	if(reset) count <= 0;
 	else begin
-		case(cs)
-			OP: count <= count + 1;
+		case(count)
+			0: begin
+				if(!done_mul1) count <= 0;
+				else count <= count + 1;
+			end
+			1: count <= 2;
+			2: count <= 3;
+			3: count <= 4;
+			4: count <= 5;
+			5: count <= 0;
 			default: count <= 0;
 		endcase
 	end
@@ -149,65 +196,65 @@ always_comb begin
 	ns = cs;
 	case(cs)
 		IDLE: begin
-			if(start) ns = READ_START;
+			if(start) ns = OP_START;
 			else ns = IDLE;
 		end
-		READ_START: ns = READ;
-		READ: begin
-			if(datavalid) ns = READ_DONE;
-			else if(read_done) ns = ALL_DONE;//RELU_START;
-			else ns = READ;
+		
+		OP_START: begin
+			if(!empty) ns = OP;
+			else ns = OP_START;
 		end
-		READ_DONE: ns = OP;
+		
 		OP: begin
-			if(done) begin
-				if(read_done) ns = ALL_DONE;//RELU_START;
-				else ns = OP_DONE;
+			if(done_flag1 && done_flag2 && done_flag3 &&done_flag4) begin
+				ns = OP_DONE;
 			end else ns = OP;
 		end
-		OP_DONE: ns = READ;
-		BIAS_START: ns = BIAS;
-		BIAS: begin
-			if(done_bias) ns = BIAS_DONE;
-			else ns = BIAS;
-		end
-		BIAS_DONE: begin
-			//ns = BIAS_DONE;
-			
-			if(count_bias >= 64) ns = ALL_DONE;//RELU_START;
-			else ns = BIAS;
-			
-		end
-		RELU_START: ns = RELU;
-		RELU: begin
-			if(address == 15) ns = ALL_DONE;
-			else ns = RELU;
+		
+		OP_DONE: begin 
+			if(read_done && empty) ns = ALL_DONE;
+			else ns = OP_START;
 		end
 		/*
-		HO_READ_START: ns = HO_READ;
-		HO_READ: begin
-			
+		HO_OP_START: begin
+			ns = HO_OP;
 		end
-		HO_READ_DONE,		//01110
-		HO_OP,				//01111
-		HO_OP_DONE,			//10000
+		
+		HO_OP: begin
+			if(read_done) ns = ALL_DONE; else		//debug
+			if(a done signal for 2 IPs) begin
+				ns = HO_OP_START;
+			end else if(all hiddens done) ns = ALL_DONE;
+			else ns = HO_OP;
+		end
 		*/
 		ALL_DONE: ns = ALL_DONE;
-		default: ns = IDLE;
+		
 	endcase
 end
 
 // ----------------------- CONTROL SIGNALS ------------------------- //
 //start_mul
-always_comb begin
-	start_mul = 0;
-	if(cs == READ_DONE) start_mul = 1;
+/*
+always @(posedge clk) begin
+	if(reset) start_mul <= 0;
+	else if(datavalid && done) start_mul <= 1;
+end
+*/
+
+
+always @(posedge clk) begin
+	if(reset) start_mul <= 0;
+	else if(cs == OP_START && ns == OP) start_mul <= 1;
+	else start_mul <= 0;
 end
 
 assign start_add1 = done_mul1;
 assign start_add2 = done_mul2;
 assign start_add3 = done_mul3;
 assign start_add4 = done_mul4;
+
+
 assign start_bias = (cs == BIAS_START) || (cs == BIAS_DONE) ? 1:0;
 
 //address
@@ -225,6 +272,11 @@ always_comb begin
 		IDLE: begin
 			address_next = 0;
 		end
+		OP_DONE: begin
+			if(address<15) address_next = address + 1;
+			else address_next = 0;
+		end
+		/*
 		BIAS_START: address_next = 0;
 		BIAS_DONE: begin
 			if(count_bias < 64) begin
@@ -232,20 +284,32 @@ always_comb begin
 				else address_next = address;
 			end
 		end
+		*/
+		/*
 		RELU_START: address_next = 0;
 		RELU: begin
 			if(address < 15) address_next = address + 1;
 			else address_next = 0;
 		end
-		
-		default: begin
-			if(done) begin 
-				if(address < 15) address_next = address + 1;
-				else address_next = 0;
+		*/
+		HO_READ_START: address_next = 0;
+		HO_OP_START: begin
+			if(next_in_ho) begin 
+				address_next = address + 1;
 			end
+		end
+		HO_OP: begin
+			if(next_in_ho) begin 
+				address_next = address + 1;
+			end
+		end
+		default: begin
+			
 		end
 	endcase
 end
+
+assign address_hidden_read = 0;
 
 always @(posedge clk) begin
 	if(reset) begin
@@ -254,11 +318,11 @@ always @(posedge clk) begin
 		done_flag3 <= 0;
 		done_flag4 <= 0;
 	end else begin
-		if(done_add1) done_flag1 <= 1;
-		if(done_add2) done_flag2 <= 1;
-		if(done_add3) done_flag3 <= 1;
-		if(done_add4) done_flag4 <= 1;
-		if(done) begin
+		if(done_mul1) done_flag1 <= 1;
+		if(done_mul2) done_flag2 <= 1;
+		if(done_mul3) done_flag3 <= 1;
+		if(done_mul4) done_flag4 <= 1;
+		if(cs == OP_DONE) begin
 			done_flag1 <= 0;
 			done_flag2 <= 0;
 			done_flag3 <= 0;
@@ -268,148 +332,504 @@ always @(posedge clk) begin
 end
 
 
+
+//n = Boolean port which signals the beginning of a 
+//new data set to be accumulated. This should go high 
+//together with the first element in the new data set 
+//and should go low the next cycle. The data sets may be 
+//of variable length and a new data set may be started 
+//at any time. The accumulation result for an input 
+//is available after the reported latency. 
+
+logic firstin;
+always @(posedge clk) begin
+	if(reset) firstin <= 0;
+	else begin
+		if(done_mul1) firstin <=1;
+	end
+end
+
+//n0
+assign n0 = (cs == IDLE && ns == OP_START) ? 4'hf :0;
+
+//acc_en15
+assign acc_en0 = (address == 0) ? {done_mul4, done_mul3, done_mul2, done_mul1} : 0;
+/*
+always @(*) begin
+	n0 = 0;
+	n1 = 0;
+	n2 = 0;
+	n3 = 0;
+	n4 = 0;
+	n5 = 0;
+	n6 = 0;
+	n7 = 0;
+	n8 = 0;
+	n9 = 0;
+	n10 = 0;
+	n11 = 0;
+	n12 = 0;
+	n13 = 0;
+	n14 = 0;
+	n15 = 0;
+	if(cs == OP) begin
+	case(address)
+		0: begin
+			if(done_mul1) n0[0] = 1;
+			if(done_mul2) n0[1] = 1;
+			if(done_mul3) n0[2] = 1;
+			if(done_mul4) n0[3] = 1;
+		end
+		1: begin
+			if(done_mul1) n1[0] = 1;
+			if(done_mul2) n1[1] = 1;
+			if(done_mul3) n1[2] = 1;
+			if(done_mul4) n1[3] = 1;
+		end
+		2: begin
+			if(done_mul1) n2[0] = 1;
+			if(done_mul2) n2[1] = 1;
+			if(done_mul3) n2[2] = 1;
+			if(done_mul4) n2[3] = 1;
+		end
+		3: begin
+			if(done_mul1) n3[0] = 1;
+			if(done_mul2) n3[1] = 1;
+			if(done_mul3) n3[2] = 1;
+			if(done_mul4) n3[3] = 1;
+		end
+		4: begin
+			if(done_mul1) n4[0] = 1;
+			if(done_mul2) n4[1] = 1;
+			if(done_mul3) n4[2] = 1;
+			if(done_mul4) n4[3] = 1;
+		end
+		5: begin
+			if(done_mul1) n5[0] = 1;
+			if(done_mul2) n5[1] = 1;
+			if(done_mul3) n5[2] = 1;
+			if(done_mul4) n5[3] = 1;
+		end
+		6: begin
+			if(done_mul1) n6[0] = 1;
+			if(done_mul2) n6[1] = 1;
+			if(done_mul3) n6[2] = 1;
+			if(done_mul4) n6[3] = 1;
+		end
+		7: begin
+			if(done_mul1) n7[0] = 1;
+			if(done_mul2) n7[1] = 1;
+			if(done_mul3) n7[2] = 1;
+			if(done_mul4) n7[3] = 1;
+		end
+		8: begin
+			if(done_mul1) n8[0] = 1;
+			if(done_mul2) n8[1] = 1;
+			if(done_mul3) n8[2] = 1;
+			if(done_mul4) n8[3] = 1;
+		end
+		9: begin
+			if(done_mul1) n9[0] = 1;
+			if(done_mul2) n9[1] = 1;
+			if(done_mul3) n9[2] = 1;
+			if(done_mul4) n9[3] = 1;
+		end
+		10: begin
+			if(done_mul1) n10[0] = 1;
+			if(done_mul2) n10[1] = 1;
+			if(done_mul3) n10[2] = 1;
+			if(done_mul4) n10[3] = 1;
+		end
+		11: begin
+			if(done_mul1) n11[0] = 1;
+			if(done_mul2) n11[1] = 1;
+			if(done_mul3) n11[2] = 1;
+			if(done_mul4) n11[3] = 1;
+		end
+		12: begin
+			if(done_mul1) n12[0] = 1;
+			if(done_mul2) n12[1] = 1;
+			if(done_mul3) n12[2] = 1;
+			if(done_mul4) n12[3] = 1;
+		end
+		13: begin
+			if(done_mul1) n13[0] = 1;
+			if(done_mul2) n13[1] = 1;
+			if(done_mul3) n13[2] = 1;
+			if(done_mul4) n13[3] = 1;
+		end
+		14: begin
+			if(done_mul1) n14[0] = 1;
+			if(done_mul2) n14[1] = 1;
+			if(done_mul3) n14[2] = 1;
+			if(done_mul4) n14[3] = 1;
+		end
+		15: begin
+			if(done_mul1) n15[0] = 1;
+			if(done_mul2) n15[1] = 1;
+			if(done_mul3) n15[2] = 1;
+			if(done_mul4) n15[3] = 1;
+		end
+	endcase
+	end
+end
+*/
+
+
+
+//count_ho
+always @(posedge clk) begin
+	if(reset) count_ho <= 0;
+	else begin
+		if(cs == HO_OP || cs == HO_OP_START) begin
+			if(next_in_edge) begin
+				if(count_ho < 4) count_ho <= count_ho + 1;
+				else count_ho <= 0;
+			end
+		end
+	end
+end
+
+
+always_comb begin
+	we = 0;
+	if(cs == OP_DONE) we = 1;
+end
+
+assign re = 1;
+
+
+
+//write_ho
+always_comb begin
+	write_ho = 0;
+	if(cs == HO_OP && next_in_edge) write_ho = 1;
+end
+
+//read_ho
+assign read_ho = 1;
+
+//addr_w_ho
+always @(posedge clk) begin
+	if(reset) addr_w_ho <= 0;
+	else begin
+		if(highbit_ho && next_in_edge) begin 
+			if(addr_w_ho < 4) addr_w_ho <= addr_w_ho + 1;
+			else addr_w_ho <= 0;
+		end
+	end
+end
+
+//addr_r_ho;
+assign addr_r_ho = addr_w_ho;
+
+
+
+
+
+
+assign next_in_ho = next_in_edge & (count_ho == 4);
+
+	
 // ----------------------------------------------------------------- //
 
 
 // ------------------------- DATA SIGNALS -------------------------- //
+/*
+always @(posedge clk) begin
+	if(reset) begin
+	dataa1 <= 0;
+	dataa2 <= 0;
+	end else begin
+	case(cs)
+		IDLE: begin
+			dataa1 <= din;
+			dataa2 <= din;
+		end
+		OP_START: begin
+			dataa1 <= din;
+			dataa2 <= din;
+		end
+		OP: begin
+			dataa1 <= din;
+			dataa2 <= din;
+		end
+		HO_OP_START: begin
+			dataa1 <= data_read[31:0];
+			dataa2 <= data_read[63:32];
+		end
+		HO_OP: begin
+			dataa1 <= data_read[31:0];
+			dataa2 <= data_read[63:32];
+		end
+	endcase
+	end
+end
+*/
+
+//x15;
+always @(*) begin
+	x0 = 0;
+	x1 = 0;
+	x2 = 0;
+	x3 = 0;
+	x4 = 0;
+	x5 = 0;
+	x6 = 0;
+	x7 = 0;
+	x8 = 0;
+	x9 = 0;
+	x10 = 0;
+	x11 = 0;
+	x12 = 0;
+	x13 = 0;
+	x14 = 0;
+	x15 = 0;
+	if(cs == OP) begin
+	case(address)
+		0:begin
+			if(done_mul1) x0[31:0] = result_mul1;
+			if(done_mul2) x0[63:32] = result_mul2;
+			if(done_mul3) x0[95:64] = result_mul3;
+			if(done_mul4) x0[127:96] = result_mul4;
+		end
+		1:begin
+			if(done_mul1) x1[31:0] = result_mul1;
+			if(done_mul2) x1[63:32] = result_mul2;
+			if(done_mul3) x1[95:64] = result_mul3;
+			if(done_mul4) x1[127:96] = result_mul4;
+		end
+		2:begin
+			if(done_mul1) x2[31:0] = result_mul1;
+			if(done_mul2) x2[63:32] = result_mul2;
+			if(done_mul3) x2[95:64] = result_mul3;
+			if(done_mul4) x2[127:96] = result_mul4;
+		end
+		3:begin
+			if(done_mul1) x3[31:0] = result_mul1;
+			if(done_mul2) x3[63:32] = result_mul2;
+			if(done_mul3) x3[95:64] = result_mul3;
+			if(done_mul4) x3[127:96] = result_mul4;
+		end
+		4:begin
+			if(done_mul1) x4[31:0] = result_mul1;
+			if(done_mul2) x4[63:32] = result_mul2;
+			if(done_mul3) x4[95:64] = result_mul3;
+			if(done_mul4) x4[127:96] = result_mul4;
+		end
+		5:begin
+			if(done_mul1) x5[31:0] = result_mul1;
+			if(done_mul2) x5[63:32] = result_mul2;
+			if(done_mul3) x5[95:64] = result_mul3;
+			if(done_mul4) x5[127:96] = result_mul4;
+		end
+		6:begin
+			if(done_mul1) x6[31:0] = result_mul1;
+			if(done_mul2) x6[63:32] = result_mul2;
+			if(done_mul3) x6[95:64] = result_mul3;
+			if(done_mul4) x6[127:96] = result_mul4;
+		end
+		7:begin
+			if(done_mul1) x7[31:0] = result_mul1;
+			if(done_mul2) x7[63:32] = result_mul2;
+			if(done_mul3) x7[95:64] = result_mul3;
+			if(done_mul4) x7[127:96] = result_mul4;
+		end
+		8:begin
+			if(done_mul1) x8[31:0] = result_mul1;
+			if(done_mul2) x8[63:32] = result_mul2;
+			if(done_mul3) x8[95:64] = result_mul3;
+			if(done_mul4) x8[127:96] = result_mul4;
+		end
+		9:begin
+			if(done_mul1) x9[31:0] = result_mul1;
+			if(done_mul2) x9[63:32] = result_mul2;
+			if(done_mul3) x9[95:64] = result_mul3;
+			if(done_mul4) x9[127:96] = result_mul4;
+		end
+		10:begin
+			if(done_mul1) x10[31:0] = result_mul1;
+			if(done_mul2) x10[63:32] = result_mul2;
+			if(done_mul3) x10[95:64] = result_mul3;
+			if(done_mul4) x10[127:96] = result_mul4;
+		end
+		11:begin
+			if(done_mul1) x11[31:0] = result_mul1;
+			if(done_mul2) x11[63:32] = result_mul2;
+			if(done_mul3) x11[95:64] = result_mul3;
+			if(done_mul4) x11[127:96] = result_mul4;
+		end
+		12:begin
+			if(done_mul1) x12[31:0] = result_mul1;
+			if(done_mul2) x12[63:32] = result_mul2;
+			if(done_mul3) x12[95:64] = result_mul3;
+			if(done_mul4) x12[127:96] = result_mul4;
+		end
+		13:begin
+			if(done_mul1) x13[31:0] = result_mul1;
+			if(done_mul2) x13[63:32] = result_mul2;
+			if(done_mul3) x13[95:64] = result_mul3;
+			if(done_mul4) x13[127:96] = result_mul4;
+		end
+		14:begin
+			if(done_mul1) x14[31:0] = result_mul1;
+			if(done_mul2) x14[63:32] = result_mul2;
+			if(done_mul3) x14[95:64] = result_mul3;
+			if(done_mul4) x14[127:96] = result_mul4;
+		end
+		15:begin
+			if(done_mul1) x15[31:0] = result_mul1;
+			if(done_mul2) x15[63:32] = result_mul2;
+			if(done_mul3) x15[95:64] = result_mul3;
+			if(done_mul4) x15[127:96] = result_mul4;
+		end
+	endcase
+	end
+end
+
+
+//r15;
+
+
 assign dataa1 = din;
 assign dataa2 = din;
 assign dataa3 = din;
 assign dataa4 = din;
-assign datab1 = data[31:0];
-assign datab2 = data[63:32];
-assign datab3 = data[95:64];
-assign datab4 = data[127:96];
+
+always @(posedge clk) begin
+	if(reset) data_write <= 0;
+	else begin
+		if(cs == OP) begin
+			if(done_add1) data_write[31:0] <= result_add1;
+			if(done_add2) data_write[63:32] <= result_add2;
+			if(done_add3) data_write[95:64] <= result_add3;
+			if(done_add4) data_write[127:96] <= result_add4;
+		end 
+	end
+end
+
+//weight_reg_ho
+always @(posedge clk) begin
+	if(reset) weight_reg_ho <= 0;
+	else begin
+		if(datavalid && cs == HO_OP_START) weight_reg_ho <= data;
+	end
+end
+
+
+
+//////////////////////////////////////////////////////////////////////////////////
+
+
+//wdata_ho
+always @(posedge clk) begin
+	if(reset) wdata_ho <= 0;
+	else begin
+		if(cs == HO_OP) begin
+			if(done_add1) wdata_ho[31:0] <= result_add1;
+			if(done_add2) wdata_ho[63:32] <= result_add2;
+		end
+	end
+end
+
+//highbit_ho
+always @(posedge clk) begin
+	if(reset) highbit_ho <= 0;
+	else begin
+		if(cs == HO_OP) begin
+			if(done_flag1 && done_flag2 && !highbit_ho) highbit_ho <= 1;
+			else if(done_flag1 && done_flag2 && highbit_ho) highbit_ho <= 0;
+		end
+	end
+end
+
+
+always_comb begin
+	datab1 = 0;
+	datab2 = 0;
+	if(cs == HO_OP || cs == HO_OP_START) begin
+		case(highbit_ho)
+			0: begin
+				datab1 = weight_reg_ho[31:0];
+				datab2 = weight_reg_ho[63:32];
+			end
+			1: begin
+				datab1 = weight_reg_ho[95:64];
+				datab2 = weight_reg_ho[127:96];
+			end
+		endcase
+	end else if(cs == OP || cs == OP_START) begin
+		datab1 = data[31:0];
+		datab2 = data[63:32];
+	end
+end
+
+
+always_comb begin
+		datab3 = 0;
+		datab4 = 0;
+	if(cs == OP || cs == OP_START) begin
+		datab3 = data[95:64];
+		datab4 = data[127:96];
+	end
+end
 
 //data_accu1
-always_ff @(posedge clk) begin
-	if(reset) data_accu1 <= 0;
-	else begin
-		if(cs == IDLE) data_accu1 <= 0;
-		else if(done_add1) data_accu1 <= hidden[address][31:0];//result_add1;
-		else data_accu1 <= data_accu1;
+always_comb begin
+	data_accu1 = 0;
+	begin
+		case(cs)
+			IDLE: data_accu1 = 0;
+			OP: begin
+				if(start_add1) data_accu1 = data_read[31:0];
+			end
+			HO_OP: begin
+				if(start_add1) data_accu1 = rdata_ho[31:0];
+			end
+		endcase	
 	end
 end
 
 //data_accu2
-always_ff @(posedge clk) begin
-	if(reset) data_accu2 <= 0;
-	else begin
-		if(cs == IDLE) data_accu2 <= 0;
-		else if(done_add2) data_accu2 <= hidden[address][63:32];
-		else data_accu2 <= data_accu2;
+always_comb begin
+	data_accu2 = 0;
+	begin
+		case(cs)
+			IDLE: data_accu2 = 0;
+			OP: begin
+				if(start_add2) data_accu2 = data_read[63:32];
+			end
+			HO_OP: begin
+				if(start_add2) data_accu2 = rdata_ho[63:32];
+			end
+		endcase	
 	end
 end
 
 //data_accu3
-always_ff @(posedge clk) begin
-	if(reset) data_accu3 <= 0;
-	else begin
-		if(cs == IDLE) data_accu3 <= 0;
-		else if(done_add3) data_accu3 <= hidden[address][95:64];
-		else data_accu3 <= data_accu3;
+always_comb begin
+	data_accu3 = 0;
+	begin
+		if(cs == IDLE) data_accu3 = 0;
+		else if(start_add3) data_accu3 = data_read[95:64];//result_add3;
 	end
 end
 
 //data_accu4
-always_ff @(posedge clk) begin
-	if(reset) data_accu4 <= 0;
-	else begin
-		if(cs == IDLE) data_accu4 <= 0;
-		else if(done_add4) data_accu4 <= hidden[address][127:96];
-		else data_accu4 <= data_accu4;
+always_comb begin
+	data_accu4 = 0;
+	begin
+		if(cs == IDLE) data_accu4 = 0;
+		else if(start_add4) data_accu4 = data_read[127:96];//result_add4;
 	end
 end
 
-//hidden
 
-always_ff @(posedge clk) begin
-	if(reset) begin
-			hidden[0] <= 0;
-			hidden[1] <= 0;
-			hidden[2] <= 0;
-			hidden[3] <= 0;
-			hidden[4] <= 0;
-			hidden[5] <= 0;
-			hidden[6] <= 0;
-			hidden[7] <= 0;
-			hidden[8] <= 0;
-			hidden[9] <= 0;
-			hidden[10] <= 0;
-			hidden[11] <= 0;
-			hidden[12] <= 0;
-			hidden[13] <= 0;
-			hidden[14] <= 0;
-			hidden[15] <= 0;
-		end
-	else begin
-		case(cs)
-		IDLE: begin
-			hidden[0] <= 0;
-			hidden[1] <= 0;
-			hidden[2] <= 0;
-			hidden[3] <= 0;
-			hidden[4] <= 0;
-			hidden[5] <= 0;
-			hidden[6] <= 0;
-			hidden[7] <= 0;
-			hidden[8] <= 0;
-			hidden[9] <= 0;
-			hidden[10] <= 0;
-			hidden[11] <= 0;
-			hidden[12] <= 0;
-			hidden[13] <= 0;
-			hidden[14] <= 0;
-			hidden[15] <= 0;
-		end
-		READ_START: begin
-			hidden[0] <= 0;
-			hidden[1] <= 0;
-			hidden[2] <= 0;
-			hidden[3] <= 0;
-			hidden[4] <= 0;
-			hidden[5] <= 0;
-			hidden[6] <= 0;
-			hidden[7] <= 0;
-			hidden[8] <= 0;
-			hidden[9] <= 0;
-			hidden[10] <= 0;
-			hidden[11] <= 0;
-			hidden[12] <= 0;
-			hidden[13] <= 0;
-			hidden[14] <= 0;
-			hidden[15] <= 0;
-		end
-		/*
-		BIAS_DONE: begin
-			case(count_bias % 4)
-				0: hidden[address][31:0] <= result_bias;
-				1: hidden[address][63:32] <= result_bias;
-				2: hidden[address][95:64] <= result_bias;
-				3: hidden[address][127:96] <= result_bias;
-			endcase
-		end
-		*/
-		RELU: begin
-			if(hidden[address][31]) hidden[address][31:0] <= 0;
-			if(hidden[address][63]) hidden[address][63:32] <= 0;
-			if(hidden[address][95]) hidden[address][95:64] <= 0;
-			if(hidden[address][127]) hidden[address][127:96] <= 0;
-		end
-		default: begin
-			if(done_add1) hidden[address][31:0] <= result_add1;
-			if(done_add2) hidden[address][63:32] <= result_add2;
-			if(done_add3) hidden[address][95:64] <= result_add3;
-			if(done_add4) hidden[address][127:96] <= result_add4;
-		end
-		endcase
-	end
-end
 
 assign dataa_bias = din_bias;
 
 //datab_bias
-
+/*
 always_ff @(posedge clk) begin
 	if(reset) datab_bias <= 0;
 	else begin
@@ -425,35 +845,45 @@ always_ff @(posedge clk) begin
 		//endcase
 	end
 end
+*/
 
 //assign hidden[13][31:0] = 32'h12345678;
 
 // ----------------------------------------------------------------- //
 
 // ------------------------- TEST SIGNALS -------------------------- //
+
+logic [31:0] data_test;
+
+always_ff @(posedge clk) begin
+	if(reset) data_test <= 0;
+	else begin
+		data_test <= r0[31:0];//rdata_ho[31:0];////i_addr_r;//datab1;//result_add1;//din;////result_add1;
+	end
+end
+
 //result
 
 
 always_ff @(posedge clk) begin
 	if(reset) result <= 0;
 	else begin
-		if(cs == IDLE) result <= 0; 
-		else if(done) result <= dataa1;//hidden[0][31:0];//dataa1;//result_add1;//din;//hidden[0][31:0];//result_add1;
-		else result <= result;
+		result <= data_test;//hidden[0][31:0];//dataa1;//result_add1;//din;//hidden[0][31:0];//result_add1;
 	end
 end
 
-/*
+logic [9:0] wf_count;
+
 always_ff @(posedge clk) begin
-	if(reset) result <= 0;
+	if(reset) wf_count <= 0;
 	else begin
-		//if(cs == OP) begin
-			if(done) result <= result + 1;			//count how many ops in total
-			else result <= result;
-		//end
+			if(next_in_edge) wf_count <= wf_count + 1;			//count how many ops in total
+			else wf_count <= wf_count;
 	end
 end
-*/
+
+assign rise_edge_check = (wf_count == 148) ? 1:0;
+
 //assign result = result_bias;//count_bias;//address;
 
 
@@ -538,6 +968,287 @@ fpoint2_multi #(
 		.result    (result_mul4)     //   .result
 	);
 
+	
+	
+macacc acc_hid_0_0 (
+	.clk(clk), .areset(reset),
+	.x(x0[31:0]),.n(n0[0]),.r(r0[31:0]),.xo(),.xu(),.ao(),.en(acc_en0[0])
+);
+macacc acc_hid_0_1 (
+	.clk(clk), .areset(reset),
+	.x(x0[63:32]),.n(n0[1]),.r(r0[63:32]),.xo(),.xu(),.ao(),.en(acc_en0[1])
+);
+macacc acc_hid_0_2 (
+	.clk(clk), .areset(reset),
+	.x(x0[95:64]),.n(n0[2]),.r(r0[95:64]),.xo(),.xu(),.ao(),.en(acc_en0[2])
+);
+macacc acc_hid_0_3 (
+	.clk(clk), .areset(reset),
+	.x(x0[127:96]),.n(n0[3]),.r(r0[127:96]),.xo(),.xu(),.ao(),.en(acc_en0[3])
+);
+
+macacc acc_hid_1_0 (
+	.clk(clk), .areset(reset),
+	.x(x1[31:0]),.n(n1[0]),.r(r1[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_1_1 (
+	.clk(clk), .areset(reset),
+	.x(x1[63:32]),.n(n1[1]),.r(r1[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_1_2 (
+	.clk(clk), .areset(reset),
+	.x(x1[95:64]),.n(n1[2]),.r(r1[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_1_3 (
+	.clk(clk), .areset(reset),
+	.x(x1[127:96]),.n(n1[3]),.r(r1[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_2_0 (
+	.clk(clk), .areset(reset),
+	.x(x2[31:0]),.n(n2[0]),.r(r2[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_2_1 (
+	.clk(clk), .areset(reset),
+	.x(x2[63:32]),.n(n2[1]),.r(r2[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_2_2 (
+	.clk(clk), .areset(reset),
+	.x(x2[95:64]),.n(n2[2]),.r(r2[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_2_3 (
+	.clk(clk), .areset(reset),
+	.x(x2[127:96]),.n(n2[3]),.r(r2[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_3_0 (
+	.clk(clk), .areset(reset),
+	.x(x3[31:0]),.n(n3[0]),.r(r3[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_3_1 (
+	.clk(clk), .areset(reset),
+	.x(x3[63:32]),.n(n3[1]),.r(r3[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_3_2 (
+	.clk(clk), .areset(reset),
+	.x(x3[95:64]),.n(n3[2]),.r(r3[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_3_3 (
+	.clk(clk), .areset(reset),
+	.x(x3[127:96]),.n(n3[3]),.r(r3[127:96]),.xo(),.xu(),.ao()
+);
+	
+macacc acc_hid_4_0 (
+	.clk(clk), .areset(reset),
+	.x(x4[31:0]),.n(n4[0]),.r(r4[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_4_1 (
+	.clk(clk), .areset(reset),
+	.x(x4[63:32]),.n(n4[1]),.r(r4[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_4_2 (
+	.clk(clk), .areset(reset),
+	.x(x4[95:64]),.n(n4[2]),.r(r4[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_4_3 (
+	.clk(clk), .areset(reset),
+	.x(x4[127:96]),.n(n4[3]),.r(r4[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_5_0 (
+	.clk(clk), .areset(reset),
+	.x(x5[31:0]),.n(n5[0]),.r(r5[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_5_1 (
+	.clk(clk), .areset(reset),
+	.x(x5[63:32]),.n(n5[1]),.r(r5[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_5_2 (
+	.clk(clk), .areset(reset),
+	.x(x5[95:64]),.n(n5[2]),.r(r5[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_5_3 (
+	.clk(clk), .areset(reset),
+	.x(x5[127:96]),.n(n5[3]),.r(r5[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_6_0 (
+	.clk(clk), .areset(reset),
+	.x(x6[31:0]),.n(n6[0]),.r(r6[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_6_1 (
+	.clk(clk), .areset(reset),
+	.x(x6[63:32]),.n(n6[1]),.r(r6[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_6_2 (
+	.clk(clk), .areset(reset),
+	.x(x6[95:64]),.n(n6[2]),.r(r6[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_6_3 (
+	.clk(clk), .areset(reset),
+	.x(x6[127:96]),.n(n6[3]),.r(r6[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_7_0 (
+	.clk(clk), .areset(reset),
+	.x(x7[31:0]),.n(n7[0]),.r(r7[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_7_1 (
+	.clk(clk), .areset(reset),
+	.x(x7[63:32]),.n(n7[1]),.r(r7[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_7_2 (
+	.clk(clk), .areset(reset),
+	.x(x7[95:64]),.n(n7[2]),.r(r7[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_7_3 (
+	.clk(clk), .areset(reset),
+	.x(x7[127:96]),.n(n7[3]),.r(r7[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_8_0 (
+	.clk(clk), .areset(reset),
+	.x(x8[31:0]),.n(n8[0]),.r(r8[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_8_1 (
+	.clk(clk), .areset(reset),
+	.x(x8[63:32]),.n(n8[1]),.r(r8[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_8_2 (
+	.clk(clk), .areset(reset),
+	.x(x8[95:64]),.n(n8[2]),.r(r8[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_8_3 (
+	.clk(clk), .areset(reset),
+	.x(x8[127:96]),.n(n8[3]),.r(r8[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_9_0 (
+	.clk(clk), .areset(reset),
+	.x(x9[31:0]),.n(n9[0]),.r(r9[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_9_1 (
+	.clk(clk), .areset(reset),
+	.x(x9[63:32]),.n(n9[1]),.r(r9[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_9_2 (
+	.clk(clk), .areset(reset),
+	.x(x9[95:64]),.n(n9[2]),.r(r9[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_9_3 (
+	.clk(clk), .areset(reset),
+	.x(x9[127:96]),.n(n9[3]),.r(r9[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_10_0 (
+	.clk(clk), .areset(reset),
+	.x(x10[31:0]),.n(n10[0]),.r(r10[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_10_1 (
+	.clk(clk), .areset(reset),
+	.x(x10[63:32]),.n(n10[1]),.r(r10[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_10_2 (
+	.clk(clk), .areset(reset),
+	.x(x10[95:64]),.n(n10[2]),.r(r10[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_10_3 (
+	.clk(clk), .areset(reset),
+	.x(x10[127:96]),.n(n10[3]),.r(r10[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_11_0 (
+	.clk(clk), .areset(reset),
+	.x(x11[31:0]),.n(n11[0]),.r(r11[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_11_1 (
+	.clk(clk), .areset(reset),
+	.x(x11[63:32]),.n(n11[1]),.r(r11[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_11_2 (
+	.clk(clk), .areset(reset),
+	.x(x11[95:64]),.n(n11[2]),.r(r11[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_11_3 (
+	.clk(clk), .areset(reset),
+	.x(x11[127:96]),.n(n11[3]),.r(r11[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_12_0 (
+	.clk(clk), .areset(reset),
+	.x(x12[31:0]),.n(n12[0]),.r(r12[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_12_1 (
+	.clk(clk), .areset(reset),
+	.x(x12[63:32]),.n(n12[1]),.r(r12[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_12_2 (
+	.clk(clk), .areset(reset),
+	.x(x12[95:64]),.n(n12[2]),.r(r12[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_12_3 (
+	.clk(clk), .areset(reset),
+	.x(x12[127:96]),.n(n12[3]),.r(r12[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_13_0 (
+	.clk(clk), .areset(reset),
+	.x(x13[31:0]),.n(n13[0]),.r(r13[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_13_1 (
+	.clk(clk), .areset(reset),
+	.x(x13[63:32]),.n(n13[1]),.r(r13[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_13_2 (
+	.clk(clk), .areset(reset),
+	.x(x13[95:64]),.n(n13[2]),.r(r13[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_13_3 (
+	.clk(clk), .areset(reset),
+	.x(x13[127:96]),.n(n13[3]),.r(r13[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_14_0 (
+	.clk(clk), .areset(reset),
+	.x(x14[31:0]),.n(n14[0]),.r(r14[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_14_1 (
+	.clk(clk), .areset(reset),
+	.x(x14[63:32]),.n(n14[1]),.r(r14[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_14_2 (
+	.clk(clk), .areset(reset),
+	.x(x14[95:64]),.n(n14[2]),.r(r14[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_14_3 (
+	.clk(clk), .areset(reset),
+	.x(x14[127:96]),.n(n14[3]),.r(r14[127:96]),.xo(),.xu(),.ao()
+);
+
+macacc acc_hid_15_0 (
+	.clk(clk), .areset(reset),
+	.x(x15[31:0]),.n(n14[0]),.r(r15[31:0]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_15_1 (
+	.clk(clk), .areset(reset),
+	.x(x15[63:32]),.n(n14[1]),.r(r15[63:32]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_15_2 (
+	.clk(clk), .areset(reset),
+	.x(x15[95:64]),.n(n14[2]),.r(r15[95:64]),.xo(),.xu(),.ao()
+);
+macacc acc_hid_15_3 (
+	.clk(clk), .areset(reset),
+	.x(x15[127:96]),.n(n14[3]),.r(r15[127:96]),.xo(),.xu(),.ao()
+);
+
+
+
+
+
+
+
+
 
 //adds
 fpoint2_multi #(
@@ -609,7 +1320,7 @@ fpoint2_multi #(
 	);
 
 //for the bias
-
+/*
 fpoint2_multi #(
 		.arithmetic_present (1),
 		.root_present       (1),
@@ -626,6 +1337,52 @@ fpoint2_multi #(
 		.done      (done_bias),      //   .done
 		.result    (result_bias)     //   .result
 	);
+*/
+rise_edge_trigger ret1(
+	.clk(clk),
+	.reset(reset),
+	.level(done_re_level),
+	.rise_edge(next_in_edge)
+);
 
+hidden_ram ram1(
+	.i_clk(clk),
+	.i_reset_p(reset),
+	.i_wdata(data_write),
+	.i_addr_w(address),
+	.i_addr_r(address_hidden_read),
+	.i_write(we),
+	.i_read(re),
+	.o_rdata(data_read)
+);
+
+output_ram ram2(
+	.i_clk(clk),
+	.i_reset_p(reset),
+	.i_wdata(wdata_ho),
+	.i_addr_w(addr_w_ho),	//0 - 4
+	.i_addr_r(addr_r_ho),	//0 - 9
+	.i_write(write_ho),
+	.i_read(read_ho),
+	.o_rdata(rdata_ho)
+);
+	
+	
+/*
+avalonbridge_pipe_stage_buffered #(
+	.c_TDATA_WIDTH(128)
+) pipe1 (
+	.i_axis_aclk(clk),
+	.i_axis_aresetn(~reset),
+	
+	.i_s_axis_tvalid(next_in_edge),
+	.o_s_axis_tready(next_address_ready),
+	.i_s_axis_tdata(data_write),
+	
+	.o_m_axis_tvalid(we),
+	.i_m_axis_tready(re),
+	.o_m_axis_tdata(data_read)
+); 
+*/
 
 endmodule

@@ -62,7 +62,7 @@ empty!(arr)
 			global addr += size(arr,1)
 		end
 	end
-	sleep(0.0003)
+	#sleep(0.0003)
 end
 # check a data from csv file: df[row, column]
 # address of df[j,i] = 4*(i-2)+256*(j-1)   --weight 1
@@ -97,7 +97,7 @@ empty!(arr)
 			global addr += size(arr,1)
 		end
 	end
-	sleep(0.0003)
+	#sleep(0.0003)
 end
 print("Write weight2 completed, total addresses used: ")
 println(addr)

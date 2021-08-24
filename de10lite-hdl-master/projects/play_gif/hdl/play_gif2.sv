@@ -119,7 +119,7 @@ assign data_read_ob3 = data_reg[95:64];
 
 //assign data_read_ob4 = interface_read_data[127:96];
 assign ack_ob = interface_acknowledge;
-assign data = data_reg[31:0];
+assign data = r00;//data_reg[31:0];
 parameter c_TDATA_WIDTH=128;
 
 //assign 
@@ -148,12 +148,17 @@ logic next_in_fp;
 logic [31:0] din_fp, din_bias_fp;
 logic adone_fp;
 logic acknowledge_flag;
+logic acc_en;
 
 logic [4:0] states, states_fp;
 
 logic [31:0] data_comp;
 logic [3:0] index_comp, index_out_comp;
 logic start_comp;
+
+logic [127:0] dataout_fifo;
+logic empty_fifo, full_fifo;
+logic o_write_req_fifo;
 
 logic [90:0][31:0] bias_reg;
 logic [7:0] address_bias, address_bias_next;
@@ -257,16 +262,6 @@ end
 
 assign read_ram = 1;
 
-always_ff @(posedge clk_50) begin
-	if(reset_p) addr_r <= 32;
-	else begin
-		if(next_in_fp) begin 
-			if(addr_r < 830) addr_r <= addr_r + 1;
-			else addr_r <= 32;
-			end
-	end
-end
-
 //img_in_ff
 always_comb begin
 	img_in_ff = 0;
@@ -343,40 +338,6 @@ end
 assign din_bias_fp = bias_reg[address_bias];
 
 
-
-//img_reg
-/*
-always_ff @(posedge clk_50) begin
-	case(states)
-		5'b00000: img_reg[address] <= 0;
-		5'b00010: img_reg[address] <= 0;
-		5'b00011: begin
-			if(interface_address < 204784) begin
-			//if(acknowledge_flag) begin
-				img_reg[address] <= data_reg[7:0];
-				img_reg[address+1] <= data_reg[15:8];
-				img_reg[address+2] <= data_reg[23:16];
-				img_reg[address+3] <= data_reg[31:24];
-				img_reg[address+4] <= data_reg[39:32];
-				img_reg[address+5] <= data_reg[47:40];
-				img_reg[address+6] <= data_reg[55:48];
-				img_reg[address+7] <= data_reg[63:56];
-				img_reg[address+8] <= data_reg[71:64];
-				img_reg[address+9] <= data_reg[79:72];
-				img_reg[address+10] <= data_reg[87:80];
-				img_reg[address+11] <= data_reg[95:88];
-				img_reg[address+12] <= data_reg[103:96];
-				img_reg[address+13] <= data_reg[111:104];
-				img_reg[address+14] <= data_reg[119:112];
-				img_reg[address+15] <= data_reg[127:120];
-			end
-			//end
-		end
-		default: img_reg[address] <= img_reg[address];
-	endcase
-end
-*/
-
 //assign img_in = img_reg[address];
 /*
 always_ff @(posedge clk_50) begin
@@ -430,22 +391,64 @@ always_ff @(posedge clk_50) begin
 	end
 end
 
+logic [7:0] usedw;
+
+
+
+
+logic [31:0] x0, r00;
+logic n0;
+logic [3:0] counter1;
+
+always @(posedge clk_100) begin
+	if(reset_p) counter1 <= 0;
+	else begin
+		case(counter1)
+			0: begin
+				if(start_fp) counter1 <= 1;
+				else counter1 <= 0;
+			end
+			1: counter1 <= 2;
+			2: counter1 <= 3;
+			3: counter1 <= 4;
+			4: counter1 <= 5;
+			5: counter1 <= 0;
+			default: counter1 <= 0;
+		endcase
+	end
+end
+
+
+assign x0 = 32'h3F800000;
+assign n0 = counter1 > 0 && counter1 <= 1 ? 1:0;
+assign acc_en = counter1 > 0 && counter1 <= 3 ? 1:0;
+
+
+
 //assign {in3, in2, in1, in4} = test_data;
 //assign {in3, in2, in1, in4} = address_bias;
 //assign {in3, in2, in1, in4} = bias_check;
 //assign {in3, in2, in1, in4} = interface_address;
-//assign {in3, in2, in1, in4} = result_fp;
+assign {in3, in2, in1, in4} = result_fp;
+//assign {in3, in2, in1, in4} = r00;
 //assign {in3, in2, in1, in4} = data_reg[31:0];
-//assign {in3, in2, in1, in4} = data_store[31:0];
+//assign {in3, in2, in1, in4} = img_fp;
 
-assign {in2, in1} = time_counter;
+//assign {in2, in1} = time_counter;
 //assign LEDR[9] = read_done_fp;
-assign in3 = dr_ram;//img_out_ff;
-//assign {in3, in2, in1} = interface_address;
-//assign {in3, in2[7:4]} = {2'b00, wptr};
-//assign {in2[3:0], in1} = {2'b00, rptr};
+//assign in3 = dr_ram;//img_out_ff;
+//assign {in3, in2, in1} = addr_r;//interface_address;
+//assign in4 = usedw;//states_fp;
+//assign in3 = dr_ram;
+//assign {in2, in1} = addr_r;
+//assign in3 = states_fp;
+//assign in1 = states;
+//assign in4 = usedw;
 
 assign LEDR[9] = adone_fp;
+assign LEDR[8] = start_fp;//ack;
+
+logic ack;
 
 ////////////////////////////////////////////////////////////////////////////////
 // QSYS System Instantiation
@@ -489,7 +492,8 @@ sdram_reader #(
     .INTERFACE_ADDR_BITS    (INTERFACE_ADDR_BITS),
     .NUM_BUFFER_ENTRIES     (NUM_BUFFER_ENTRIES)
 ) u2 (
-    .interface_clock    (clk_50),
+    .interface_clock    (clk_100),
+	 .read_clock			(clk_25),
     .reset_n            (reset_n),
     // Interface signals
     .interface_address     (interface_address),
@@ -499,16 +503,18 @@ sdram_reader #(
     //.interface_write_data  (interface_write_data),
     .interface_acknowledge (interface_acknowledge),
     .interface_read_data   (interface_read_data),
-	 .next_img(next_img),
+	 .next_img(next_in_fp),
 	 .read_img_start(start_fp),
-	 .mac_start(start_manual),
+	 .mac_start(ack),//.mac_start(start_manual),
 	 .mac_done(done_fp),
 	 .data_reg(data_reg),
 	 .read_done(read_done_fp),
 	 .acknowledge_flag(acknowledge_flag),
 	 .states(states),
+	 .addr_r(addr_r),
 	 .dr_ram(dr_ram),
-	 .ack(LEDR[8])
+	 .o_write_req_fifo(o_write_req_fifo),
+	 .ack(ack)
     // VGA signals
 	 /*
     .read_address          (buffer_read_address),
@@ -535,15 +541,18 @@ simple_mlp #(
 );
 
 fp_mac u4 (
-		.clk       (clk_50),       // s1.clk
-		.data		  (data_reg),
-		.din		  (img_fp),
+		.clk       (clk_100),       // s1.clk
+		.data		  (dataout_fifo),			//dataout_fifo
+		.din		  (img_fp),		//img_fp
 		.din_bias  (din_bias_fp),
-		.datavalid (acknowledge_flag),
+		.datavalid (1),			//o_write_req_fifo
 		.reset     (reset_p),     //   .reset
 		.read_done (read_done_fp),
-		.start     (start_manual),     //   .start
-		.done      (done_fp),      //   .done
+		.start	  (ack),//.start     (start_manual),     //   .start
+		.i_addr_r  (addr_r),							//image address
+		.interface_address (interface_address),
+		.empty	  (empty_fifo),					//empty
+		.ready      (done_fp),      //   .done			//read_request to fifo
 		.done_bias (done_bias_fp),
 		.result    (result_fp),     //   .result
 		.states	  (states_fp),
@@ -552,13 +561,13 @@ fp_mac u4 (
 );
 
 clock_divider u5 (
-	.clk(clk_50),
+	.clk(clk_100),
 	.reset(reset_n), 
 	.clk_out(clk_slow)
 );
 
 rise_edge_trigger u6(
-	.clk(clk_50),
+	.clk(clk_100),
 	.reset(reset_p),
 	.level(clk_slow),
 	.rise_edge(start_fp)
@@ -571,7 +580,7 @@ uint_to_float u7(
 );
 
 rise_edge_trigger u8(
-	.clk(clk_50),
+	.clk(clk_100),
 	.reset(reset_p),
 	.level(~KEY[1]),
 	.rise_edge(start_manual)
@@ -585,7 +594,7 @@ fp_compare u9(
 	.index_in(index_comp),
 	.index_out(index_out_comp)
 );
-
+/*
 img_fifo u10(
 	.clk(clk_50), 
 	.reset(reset_p), 
@@ -598,8 +607,20 @@ img_fifo u10(
 	.wptr(wptr),
 	.rptr(rptr)
 );
+*/
 
+fifo_i_multiplier C_FIFO_I_MULTIPLIER (
+	.clock(clk_100),
+	.data(interface_read_data),
+	.rdreq(done_fp),
+	.wrreq(o_write_req_fifo),
+	.empty(empty_fifo),
+	.full(full_fifo),
+	.q(dataout_fifo),
+	.usedw(usedw)				//Show the number of words stored in the FIFO (256) (8bit)
+);
 
+	
 
 
 display_output display0(
@@ -614,8 +635,16 @@ display_output display0(
         .seg5 (HEX4),
         .seg6 (HEX5),
         .ledr (LEDR[7:0])
-    );   
+);   
 
 
+
+	 
+macacc acc_hid_00 (
+	.clk(clk_100), .areset(reset_p),
+	.x(x0),.n(n0),.r(r00),.xo(),.xu(),.ao(),.en(acc_en)
+);
+
+	 
 
 endmodule
