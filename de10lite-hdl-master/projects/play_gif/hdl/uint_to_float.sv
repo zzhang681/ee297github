@@ -265,7 +265,7 @@ always_comb begin
 	        8'd250 : o_fp32_hex = 32'h3f7afafb;
 	        8'd251 : o_fp32_hex = 32'h3f7bfbfc;
 	        8'd252 : o_fp32_hex = 32'h3f7cfcfd;
-	        8'd253 : o_fp32_hex = 32'hc30c8ea1;
+	        8'd253 : o_fp32_hex = 32'h3f7dfdfd;
 	        8'd254 : o_fp32_hex = 32'h3f7efeff;
 	        8'd255 : o_fp32_hex = 32'h3f800000;
             default: o_fp32_hex = 32'h0;			

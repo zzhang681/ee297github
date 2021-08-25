@@ -37,8 +37,6 @@ module play_gif2(
     output       VGA_VS,
 	 
 	 //output [31:0] data_read_ob,
-	 output [31:0] data_read_ob2,
-	 output [31:0] data_read_ob3,
 	 //output [31:0] data_read_ob4,
 	 output [31:0] data,
 	 output ack_ob,
@@ -114,12 +112,10 @@ logic                                interface_acknowledge;
 logic [INTERFACE_WIDTH_BITS-1:0] data_reg;
 
 //assign data_read_ob = interface_read_data[31:0];
-assign data_read_ob2 = data_reg[63:32];
-assign data_read_ob3 = data_reg[95:64];
 
 //assign data_read_ob4 = interface_read_data[127:96];
 assign ack_ob = interface_acknowledge;
-assign data = r00;//data_reg[31:0];
+
 parameter c_TDATA_WIDTH=128;
 
 //assign 
@@ -160,7 +156,6 @@ logic [127:0] dataout_fifo;
 logic empty_fifo, full_fifo;
 logic o_write_req_fifo;
 
-logic [90:0][31:0] bias_reg;
 logic [7:0] address_bias, address_bias_next;
 logic [31:0] bias_check;
 
@@ -182,42 +177,6 @@ logic [9:0] address, address_next;
 logic [31:0] img_fp;
 logic start_manual;
 
-//assign img_in = 128;
-
-//assign address = 0;
-always_ff @(posedge clk_50) begin
-	if(reset_p) address <= 0;
-	else address <= address_next;
-end
-
-always_comb begin
-	address_next = address;
-	case(states) 
-		5'b00000: address_next = 0;
-		5'b00100: address_next = address + 16;
-		5'b00110: address_next = 0;
-		//5'b01010: address_next = address + 1;
-		default: begin
-			if(next_in_fp) address_next = address + 1;
-			else address_next = address;
-		end
-	endcase
-end
-
-//write_ff
-always_ff @(posedge clk_50) begin
-	if(reset_p) write_ff <= 0;
-	else begin
-		case(states)
-			5'b01100: begin
-				if(interface_address >= 204016 && interface_address < 204784) begin
-					write_ff <= 1;
-				end
-			end
-			default: write_ff <= 0;
-		endcase
-	end
-end
 
 //read_ff
 assign read_ff = start_fp;//next_in_fp;
@@ -262,166 +221,9 @@ end
 
 assign read_ram = 1;
 
-//img_in_ff
-always_comb begin
-	img_in_ff = 0;
-	begin
-		case(next_img_count)
-			0: img_in_ff = data_store[7:0];
-			1: img_in_ff = data_store[15:8];
-			2: img_in_ff = data_store[23:16];
-			3: img_in_ff = data_store[31:24];
-			4: img_in_ff = data_store[39:32];
-			5: img_in_ff = data_store[47:40];
-			6: img_in_ff = data_store[55:48];
-			7: img_in_ff = data_store[63:56];
-			8: img_in_ff = data_store[71:64];
-			9: img_in_ff = data_store[79:72];
-			10: img_in_ff = data_store[87:80];
-			11: img_in_ff = data_store[95:88];
-			12: img_in_ff = data_store[103:96];
-			13: img_in_ff = data_store[111:104];
-			14: img_in_ff = data_store[119:112];
-			15: img_in_ff = data_store[127:120];
-		endcase
-	end
-end
-
-always_comb begin
-	address_bias_next = address_bias;
-	case(states)
-		5'b00000: begin 
-			if(address_bias_next <= 90) address_bias_next = address_bias + 1;
-			else address_bias_next = 0;
-		end
-		5'b00001: address_bias_next = 0;
-		5'b00100: begin
-			if(interface_address >= 204784) address_bias_next = address_bias + 4;
-		end
-		default: begin
-			case(states_fp)
-				5'b00111: address_bias_next = 4;
-				5'b01001: address_bias_next = address_bias + 1;
-				default: address_bias_next = address_bias;
-			endcase
-		end
-	endcase
-end
-
-//bias_reg
-always_ff @(posedge clk_50) begin
-	case(states)
-		5'b00000: bias_reg[address_bias] <= 0;
-		5'b00011: begin
-			if(interface_address >= 204784) begin 
-				//if(acknowledge_flag) begin
-				/*
-				if(address_bias == 8) begin 
-					bias_reg[8] <= 0;
-					bias_reg[address_bias+1] <= data_reg[63:32];
-					bias_reg[address_bias+2] <= data_reg[95:64];
-					bias_reg[address_bias+3] <= data_reg[127:96];
-				end
-				else*/ 
-				begin
-				bias_reg[address_bias] <= data_reg[31:0];
-				bias_reg[address_bias+1] <= data_reg[63:32];
-				bias_reg[address_bias+2] <= data_reg[95:64];
-				bias_reg[address_bias+3] <= data_reg[127:96];
-				end
-				//end
-			end
-		end
-	endcase
-end
-
-assign din_bias_fp = bias_reg[address_bias];
-
-
-//assign img_in = img_reg[address];
-/*
-always_ff @(posedge clk_50) begin
-	if(reset_p) img_in <= 0;
-	else begin
-		if(start_manual) img_in <= img_reg[0];
-		else begin
-			if(next_in_fp) begin 
-				img_in <= img_reg[address];
-			end else img_in <= img_in;
-		end
-	end
-end
-*/
 assign din_fp = 32'h3f000000;			//0.5
 assign reset_p = ~reset_n;
-//assign bias_check = bias_reg[63];	//4 - 77  4-67, 68-77
-/*
-always_latch begin
-	if(reset_p) bias_check = 0;
-	else if(address_bias == 30) bias_check = din_bias_fp;
-end
-*/
-logic [9:0] time_counter, next_in_counter, wptr, rptr;
-logic [31:0] test_data;
 
-always_ff @(posedge clk_50) begin
-	if(reset_p) test_data <= 32'hffffffff;
-	else begin
-		if(states == 5'b00011 && acknowledge_flag) begin 
-			$display("yesyesyesyesyes");
-			test_data <= data_reg[31:0];
-		end
-	end
-end
-
-always_ff @(posedge clk_50) begin
-	if(reset_p) time_counter <= 0;
-	else begin
-		if(start_fp) begin 
-			if(time_counter < 784) time_counter <= time_counter + 1;
-			else time_counter <= 0;
-		end else time_counter <= time_counter;
-	end
-end
-
-always_ff @(posedge clk_50) begin
-	if(reset_p) next_in_counter <= 0;
-	else begin
-		if(acknowledge_flag) next_in_counter <= next_in_counter + 1;
-	end
-end
-
-logic [7:0] usedw;
-
-
-
-
-logic [31:0] x0, r00;
-logic n0;
-logic [3:0] counter1;
-
-always @(posedge clk_100) begin
-	if(reset_p) counter1 <= 0;
-	else begin
-		case(counter1)
-			0: begin
-				if(start_fp) counter1 <= 1;
-				else counter1 <= 0;
-			end
-			1: counter1 <= 2;
-			2: counter1 <= 3;
-			3: counter1 <= 4;
-			4: counter1 <= 5;
-			5: counter1 <= 0;
-			default: counter1 <= 0;
-		endcase
-	end
-end
-
-
-assign x0 = 32'h3F800000;
-assign n0 = counter1 > 0 && counter1 <= 1 ? 1:0;
-assign acc_en = counter1 > 0 && counter1 <= 3 ? 1:0;
 
 
 
@@ -429,7 +231,7 @@ assign acc_en = counter1 > 0 && counter1 <= 3 ? 1:0;
 //assign {in3, in2, in1, in4} = address_bias;
 //assign {in3, in2, in1, in4} = bias_check;
 //assign {in3, in2, in1, in4} = interface_address;
-assign {in3, in2, in1, in4} = result_fp;
+//assign {in3, in2, in1, in4} = result_fp;
 //assign {in3, in2, in1, in4} = r00;
 //assign {in3, in2, in1, in4} = data_reg[31:0];
 //assign {in3, in2, in1, in4} = img_fp;
@@ -441,8 +243,8 @@ assign {in3, in2, in1, in4} = result_fp;
 //assign in4 = usedw;//states_fp;
 //assign in3 = dr_ram;
 //assign {in2, in1} = addr_r;
-//assign in3 = states_fp;
-//assign in1 = states;
+assign in3 = states_fp;
+assign in1 = states;
 //assign in4 = usedw;
 
 assign LEDR[9] = adone_fp;
@@ -542,6 +344,7 @@ simple_mlp #(
 
 fp_mac u4 (
 		.clk       (clk_100),       // s1.clk
+		.clk_50	  (clk_50),
 		.data		  (dataout_fifo),			//dataout_fifo
 		.din		  (img_fp),		//img_fp
 		.din_bias  (din_bias_fp),
@@ -594,20 +397,6 @@ fp_compare u9(
 	.index_in(index_comp),
 	.index_out(index_out_comp)
 );
-/*
-img_fifo u10(
-	.clk(clk_50), 
-	.reset(reset_p), 
-	.full(full_ff), 
-	.empty(empty_ff), 
-	.wn(write_ff), 
-	.rn(read_ff), 
-	.datain(img_in_ff), 
-	.dataout(img_out_ff),
-	.wptr(wptr),
-	.rptr(rptr)
-);
-*/
 
 fifo_i_multiplier C_FIFO_I_MULTIPLIER (
 	.clock(clk_100),
@@ -638,13 +427,5 @@ display_output display0(
 );   
 
 
-
-	 
-macacc acc_hid_00 (
-	.clk(clk_100), .areset(reset_p),
-	.x(x0),.n(n0),.r(r00),.xo(),.xu(),.ao(),.en(acc_en)
-);
-
-	 
 
 endmodule
