@@ -35,6 +35,7 @@ module sdram_reader #(
 		  input  empty_fifo,
 		  output	logic[INTERFACE_WIDTH_BITS-1:0]			data_reg,
 		  output read_done,
+		  output read_done_w2,
 		  output logic acknowledge_flag,
 		  output [4:0] states,
 		  output logic [9:0] addr_r,
@@ -75,7 +76,16 @@ localparam INTERFACE_WIDTH_BYTES = INTERFACE_WIDTH_BITS / 8;
 
 //assign interface_byte_enable = (2 ** INTERFACE_WIDTH_BYTES) - 1;
 
-parameter final_address = 200704;//544;		//200688, 200704， 203264		//op# = address / 16
+parameter ADDR_W1 = 0;
+parameter ADDR_W1_FIN = 200703;
+parameter ADDR_BIAS1 = 200704;
+parameter ADDR_BIAS1_FIN = 200959;
+parameter ADDR_W2 = 200960;
+parameter ADDR_W2_FIN = 203519;
+parameter ADDR_BIAS2 = 203520;
+parameter ADDR_BIAS2_FIN = 203559;
+
+parameter final_address = ADDR_BIAS2_FIN + 1;//544;		//200688, 200704， 203264		//op# = address / 16
 parameter final_w1 = 200704;
 parameter IMG_BYTES = 784;
 
@@ -140,7 +150,8 @@ read_img_store = 5'b01100
 logic [4:0] cs, ns;
 */
 assign states = cs;
-assign read_done = (cs == ALL_DONE) ? 1 : 0;
+assign read_done = (cs == ALL_DONE)?1:0;//(cs == READ && interface_address >= final_w1) ? 1 : 0;
+assign read_done_w2 = (cs == ALL_DONE)?1:0;
 assign edge_det_IDLE = (cs == IDLE) ? 1:0;
 
 always begin
@@ -241,13 +252,6 @@ always @(*) begin
 					//else interface_address_next = interface_address;
 				end else interface_address_next = interface_address;
 			end
-			
-			OP_DONE: begin
-				//interface_address_next = interface_address + 5'h10;////////////////////////////////
-				//else interface_address = interface_address;
-			end
-			
-			//READ_FIN: interface_address <= 0;
 			
 			default: interface_address_next = interface_address;
 		endcase

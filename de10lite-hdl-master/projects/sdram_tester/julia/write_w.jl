@@ -69,6 +69,24 @@ end
 print("Write weight1 completed, total addresses used: ")
 println(addr)
 
+############################# bias1 #########################################
+print("Reading bias1......")
+df = DataFrame(CSV.File("bias1_hex.csv"))
+println("Complete")
+
+global arr = []
+global addr = 200704
+empty!(arr)
+println("Writing bias1 into FPGA......")
+for i in 1:size(df,1)
+	str = df[i,2]
+	arr_temp = [parse(UInt8, str[7:8],base=16),parse(UInt8, str[5:6],base=16),
+				parse(UInt8, str[3:4],base=16),parse(UInt8, str[1:2],base=16)]				#little endian
+	append!(arr,arr_temp)
+end
+write(jtag,addr,arr)
+empty!(arr)
+
 #w2
 # size(df2, 1) = 64
 # size(df2, 2) = 11
@@ -76,7 +94,7 @@ print("Reading weight2......")
 df2 = DataFrame(CSV.File("weight2_hex.csv"))
 println("Complete")
 
-global addr = addr_cal(size(df,1),size(df,2))+4
+global addr = 200960
 global arr = []
 empty!(arr)
 @showprogress "Writing weight2 into FPGA......" for j in 1:size(df2,1)
@@ -101,7 +119,29 @@ empty!(arr)
 end
 print("Write weight2 completed, total addresses used: ")
 println(addr)
+
+
+############################# bias2 #########################################
+
+print("Reading bias2......")
+df2 = DataFrame(CSV.File("bias2_hex.csv"))
+println("Complete")
+
+global arr = []
+global addr = 203520
+
+for i in 1:size(df2,1)
+	str = df2[i,2]
+	arr_temp = [parse(UInt8, str[7:8],base=16),parse(UInt8, str[5:6],base=16),
+				parse(UInt8, str[3:4],base=16),parse(UInt8, str[1:2],base=16)]				#little endian
+	append!(arr,arr_temp)
+end
+
+write(jtag,addr,arr)
+empty!(arr)
+
+
 println("-------------------------")
-println("Weight1 address: 0 to ", addr_cal(size(df,1),size(df,2))+3)
-println("Weight2 address: ", addr_cal(size(df,1),size(df,2))+4," to ", addr)
+#println("Weight1 address: 0 to ", addr_cal(size(df,1),size(df,2))+3)
+#println("Weight2 address: ", addr_cal(size(df,1),size(df,2))+4," to ", addr)
 

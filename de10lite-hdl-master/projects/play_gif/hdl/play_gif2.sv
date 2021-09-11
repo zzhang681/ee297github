@@ -145,6 +145,7 @@ logic [31:0] din_fp, din_bias_fp;
 logic adone_fp;
 logic acknowledge_flag;
 logic acc_en;
+logic read_done_w2_fp;
 
 logic [4:0] states, states_fp;
 
@@ -240,7 +241,7 @@ assign reset_p = ~reset_n;
 //assign LEDR[9] = read_done_fp;
 //assign in3 = dr_ram;//img_out_ff;
 //assign {in3, in2, in1} = addr_r;//interface_address;
-//assign in4 = usedw;//states_fp;
+assign in4 = usedw;//states_fp;
 //assign in3 = dr_ram;
 //assign {in2, in1} = addr_r;
 assign in3 = states_fp;
@@ -311,6 +312,7 @@ sdram_reader #(
 	 .mac_done(done_fp),
 	 .data_reg(data_reg),
 	 .read_done(read_done_fp),
+	 .read_done_w2(read_done_w2_fp),
 	 .acknowledge_flag(acknowledge_flag),
 	 .states(states),
 	 .addr_r(addr_r),
@@ -351,6 +353,7 @@ fp_mac u4 (
 		.datavalid (1),			//o_write_req_fifo
 		.reset     (reset_p),     //   .reset
 		.read_done (read_done_fp),
+		.read_done_w2(read_done_w2_fp),
 		.start	  (ack),//.start     (start_manual),     //   .start
 		.i_addr_r  (addr_r),							//image address
 		.interface_address (interface_address),
@@ -388,7 +391,7 @@ rise_edge_trigger u8(
 	.level(~KEY[1]),
 	.rise_edge(start_manual)
 );
-
+/*
 fp_compare u9(
 	.clk(clk_50),
 	.reset(reset_p),
@@ -397,7 +400,7 @@ fp_compare u9(
 	.index_in(index_comp),
 	.index_out(index_out_comp)
 );
-
+*/
 fifo_i_multiplier C_FIFO_I_MULTIPLIER (
 	.clock(clk_100),
 	.data(interface_read_data),

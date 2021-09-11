@@ -7,8 +7,7 @@
 			r      : out std_logic_vector(31 downto 0);                    -- r
 			xo     : out std_logic;                                        -- xo
 			xu     : out std_logic;                                        -- xu
-			ao     : out std_logic;                                        -- ao
-			en     : in  std_logic_vector(0 downto 0)  := (others => 'X')  -- en
+			ao     : out std_logic                                         -- ao
 		);
 	end component macacc;
 

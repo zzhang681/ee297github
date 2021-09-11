@@ -13,8 +13,7 @@ module macacc (
 		output wire [31:0] r,      //      r.r
 		output wire        xo,     //     xo.xo
 		output wire        xu,     //     xu.xu
-		output wire        ao,     //     ao.ao
-		input  wire [0:0]  en      //     en.en
+		output wire        ao      //     ao.ao
 	);
 
 	macacc_0002 macacc_inst (
@@ -25,8 +24,7 @@ module macacc (
 		.r      (r),      //      r.r
 		.xo     (xo),     //     xo.xo
 		.xu     (xu),     //     xu.xu
-		.ao     (ao),     //     ao.ao
-		.en     (en)      //     en.en
+		.ao     (ao)      //     ao.ao
 	);
 
 endmodule
@@ -59,10 +57,10 @@ endmodule
 // Retrieval info: <instance entity-name="altera_fp_acc_custom" version="18.1" >
 // Retrieval info: 	<generic name="fp_format" value="single" />
 // Retrieval info: 	<generic name="frequency" value="100" />
-// Retrieval info: 	<generic name="gen_enable" value="true" />
+// Retrieval info: 	<generic name="gen_enable" value="false" />
 // Retrieval info: 	<generic name="MSBA" value="20" />
 // Retrieval info: 	<generic name="maxMSBX" value="12" />
-// Retrieval info: 	<generic name="LSBA" value="-26" />
+// Retrieval info: 	<generic name="LSBA" value="-80" />
 // Retrieval info: 	<generic name="selected_device_family" value="MAX 10" />
 // Retrieval info: 	<generic name="selected_device_speedgrade" value="6" />
 // Retrieval info: </instance>
