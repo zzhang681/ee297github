@@ -11,30 +11,27 @@ module fp_mac (
 		input  wire	[31:0] din_bias,
 		input					 datavalid,
 		input  wire        reset,     //   .reset
-		input  wire			 read_done,
-		input  wire			 read_done_w2,
 		input  wire        start,     //   .start
 		input 	[9:0]		 i_addr_r,
 		input  wire [127:0] interface_address,
 		input  wire 			empty,
 		output logic        ready,      //   .ready
-		output wire			 done_bias,
+		output reg [3:0] index_pred,
 		output wire [31:0] result,     //   .result
 		output wire [4:0] states,
 		output wire next_in,
-		output adone,
-		output rise_edge_check,
-		output [5:0] count_ho_ob
+		output adone
+		
 );
 
 enum bit[4:0] {
-	IDLE,				//00000
-	READ_IMG,		//00001
-	OP_START,		//00010
-	READ,				//00011
-	READ_DONE,		//00100
-	OP,				//00101
-	OP_DONE,			//00110
+	IDLE,				//Stay Idle until Reader finished loading image into SRAM
+	READ_IMG,		//not used
+	OP_START,		//Send read request to FIFO, wait weight data
+	READ,				//not used
+	READ_DONE,		//not used
+	OP,				//Perform multiplication & Accumulation for 1 group of weight data
+	OP_DONE,			//Finish buffer state, store result into hidden SRAM
 	BIAS_START,		//00111
 	BIAS,				//01000
 	BIAS_DONE,		//01001
@@ -52,6 +49,8 @@ enum bit[4:0] {
 	HO_BIAS2,
 	HO_BIAS_DONE,
 	HO_RELU,
+	OUT_BUFFER,
+	OUT_COMPARE,
 	ALL_DONE			//10001
 } cs, ns;
 
@@ -302,6 +301,15 @@ always @(posedge clk) begin
 				default: count <= count + 1;
 			endcase
 		end 
+		else if(cs == OUT_COMPARE) begin
+			case(count)
+				0: begin
+					count <= count + 1;
+				end
+				3: count <= 0;
+				default: count <= count + 1;
+			endcase
+		end 
 	end
 end
 
@@ -424,8 +432,13 @@ always_comb begin
 			else ns = HO_BIAS_START;
 		end
 		HO_RELU: begin
-			if(address_out == 4 && count == 2) ns = ALL_DONE;
+			if(address_out == 4 && count == 2) ns = OUT_BUFFER;
 			else ns = HO_RELU;
+		end
+		OUT_BUFFER: ns = OUT_COMPARE;
+		OUT_COMPARE: begin
+			if(address_out == 4 && count == 3) ns = ALL_DONE;
+			else ns = OUT_COMPARE;
 		end
 		ALL_DONE: ns = ALL_DONE;
 		
@@ -551,7 +564,15 @@ always_comb begin
 		end
 		
 		HO_RELU: begin
-			if(count == 2) address_ho_next = address_ho + 1;
+			if(count == 2) begin 
+				if(address < 4) address_ho_next = address_ho + 1;
+				else address_ho_next = 0;
+			end
+		end
+		OUT_BUFFER: address_ho_next = 0;
+		
+		OUT_COMPARE: begin
+			if(count == 3) address_ho_next = address_ho + 1;
 		end
 		
 	endcase
@@ -589,9 +610,6 @@ end
 //at any time. The accumulation result for an input 
 //is available after the reported latency. 
 
-//n0
-assign n0 =  ((cs == IDLE) || (cs == OP_START && ns == OP) || (cs == BIAS_START && ns == BIAS) || (cs == HO_OP_START && ns == HO_OP) ||(cs == HO_OP1_DONE && ns == HO_OP2)) ? 4'hf :0;
-
 
 //count_ho
 always @(posedge clk) begin
@@ -614,18 +632,97 @@ always @(posedge clk) begin
 end
 
 
-always_comb begin
-	we = 0;
-	if(cs == OP_DONE) we = 1;
-end
-
-assign re = 1;
-
 
 // ----------------------------------------------------------------- //
 
 
-// ------------------------- DATA SIGNALS -------------------------- //
+// ------------------------- DATA SIGNALS -------------------------- //////////////////////////////////////////////////////
+
+logic [31:0] dataa_comp, datab_comp;
+logic [31:0] reg_comp;
+logic [3:0] index_comp;
+logic [0:0] q_comp;
+//logic [3:0] index_pred;
+
+//assign index_pred1 = index_pred;
+
+//dataa_comp, datab_comp
+always @(*) begin
+	dataa_comp = 0;
+	datab_comp = 0;
+	case(cs)
+		OUT_COMPARE: begin
+			case(count)
+				2: begin
+					dataa_comp = rdata_out[31:0];
+					datab_comp = reg_comp;
+				end
+				3: begin
+					dataa_comp = rdata_out[63:32];
+					datab_comp = reg_comp;
+				end
+				default: begin
+					dataa_comp = 0;
+					datab_comp = 0;
+				end
+			endcase
+		end
+	endcase
+end
+
+always @(*) begin
+	index_comp = 0;
+	case(cs)
+		OUT_COMPARE: begin
+			if(count == 2) index_comp = address_out * 2;
+			else if(count == 3) index_comp = address_out * 2 + 1;
+		end
+	endcase
+end
+
+always @(posedge clk) begin
+	if(reset) begin
+		reg_comp <= 0;
+		index_pred <= 0;
+	end else begin
+		case(cs)
+			OUT_COMPARE: begin
+				case(count)
+					2: begin
+						//index_comp <= index_comp + 1;
+						if(q_comp) begin
+							reg_comp <= dataa_comp;
+							index_pred <= index_comp;
+						end else begin
+							reg_comp <= datab_comp;
+						end
+					end
+					3: begin
+						//index_comp <= index_comp + 1;
+						if(q_comp) begin
+							reg_comp <= dataa_comp;
+							index_pred <= index_comp;
+						end else begin
+							reg_comp <= datab_comp;
+						end
+					end
+					default: begin
+						//index_comp <= index_comp;
+						index_pred <= index_pred;
+						reg_comp <= reg_comp;
+					end
+				endcase
+			end
+			default: begin
+				//index_comp <= index_comp;
+				index_pred <= index_pred;
+				reg_comp <= reg_comp;
+			end
+		endcase
+	end
+end
+
+
 
 
 
@@ -877,6 +974,9 @@ always @(*) begin
 				wdata_out = relu_temp_ho;
 			end
 		end
+		OUT_COMPARE: begin
+			address_out = address_ho;
+		end
 	endcase
 end
 
@@ -914,39 +1014,6 @@ always @(*) begin
 	endcase
 end
 	
-	/*
-	if(cs != IDLE && i_addr_r < 1) begin
-		if(cs == OP) begin
-			if(done_mul1) x0[31:0] = result_mul1;
-			if(done_mul2) x0[63:32] = result_mul2;
-			if(done_mul3) x0[95:64] = result_mul3;
-			if(done_mul4) x0[127:96] = result_mul4;
-		end else x0 = 0;
-	end else if(cs != IDLE) begin
-		if(cs == OP_START && ns == OP) x0 = rdata_hidden;
-		else if(cs == OP) begin
-			if(done_mul1) x0[31:0] = result_mul1;
-			if(done_mul2) x0[63:32] = result_mul2;
-			if(done_mul3) x0[95:64] = result_mul3;
-			if(done_mul4) x0[127:96] = result_mul4;
-		end else if(cs == BIAS_START && ns == BIAS) begin
-			x0 = rdata_hidden;
-		end else if(cs == BIAS) begin
-			if(count == 1) x0 = data;
-		end else if(cs == HO_OP_START && ns == HO_OP) begin
-			if(count_ho < 1) x0 = 0;
-			else x0[63:0] = rdata_out;
-		end else if(cs == HO_OP && ns == HO_OP2) begin
-			if(count_ho < 1) x0 = 0;
-			else x0[63:0] = rdata_out;
-		end else if(cs == HO_OP || cs == HO_OP2) begin
-			if(done_mul1) x0[31:0] = result_mul1;
-			if(done_mul2) x0[63:32] = result_mul2;
-		end else x0 = 0;
-	end else x0 = 0;
-	
-end
-*/
 
 //dataa1 - 4. datab1 - 4
 always @(*) begin
@@ -1023,67 +1090,6 @@ always @(*) begin
 end
 
 
-/*
-
-always @(*) begin
-	dataa1 = 0;
-	dataa2 = 0;
-	case(cs)
-		
-		OP: begin
-			dataa1 = din;
-			dataa2 = din;
-			
-		end
-		
-		HO_OP: begin
-			case(count_ho % 4)
-				0: begin
-					dataa1 = rdata_hidden[31:0];
-					dataa2 = rdata_hidden[31:0];
-				end
-				1: begin
-					dataa1 = rdata_hidden[63:32];
-					dataa2 = rdata_hidden[63:32];
-				end
-				2: begin
-					dataa1 = rdata_hidden[95:64];
-					dataa2 = rdata_hidden[95:64];
-				end
-				3: begin
-					dataa1 = rdata_hidden[127:96];
-					dataa2 = rdata_hidden[127:96];
-				end
-			endcase
-		end
-		HO_OP2: begin
-			case(count_ho % 4)
-				0: begin
-					dataa1 = rdata_hidden[31:0];
-					dataa2 = rdata_hidden[31:0];
-				end
-				1: begin
-					dataa1 = rdata_hidden[63:32];
-					dataa2 = rdata_hidden[63:32];
-				end
-				2: begin
-					dataa1 = rdata_hidden[95:64];
-					dataa2 = rdata_hidden[95:64];
-				end
-				3: begin
-					dataa1 = rdata_hidden[127:96];
-					dataa2 = rdata_hidden[127:96];
-				end
-			endcase
-		end
-	endcase
-end
-
-*/
-
-//assign dataa3 = din;
-//assign dataa4 = din;
-
 
 //weight_reg_ho
 always @(posedge clk) begin
@@ -1112,41 +1118,8 @@ always @(posedge clk) begin
 		end
 	end
 end
-/*
-
-always @(*) begin
-	datab1 = 0;
-	datab2 = 0;
-	case(cs)
-		OP: begin
-			datab1 = data[31:0];
-			datab2 = data[63:32];
-		end
-		HO_OP: begin
-			datab1 = weight_reg_ho[31:0];
-			datab2 = weight_reg_ho[63:32];
-		end
-		HO_OP2: begin
-			datab1 = weight_reg_ho[95:64];
-			datab2 = weight_reg_ho[127:96];
-		end
-	endcase
-end
 
 
-always @(*) begin
-		datab3 = 0;
-		datab4 = 0;
-	if(cs == OP || cs == OP_START) begin
-		datab3 = data[95:64];
-		datab4 = data[127:96];
-	end
-end
-
-*/
-
-
-//assign hidden[13][31:0] = 32'h12345678;
 
 // ----------------------------------------------------------------- //
 
@@ -1181,7 +1154,6 @@ always_ff @(posedge clk) begin
 	end
 end
 
-assign rise_edge_check = (cs == OP && i_addr_r == 155) ? 1:0;
 
 //assign result = result_bias;//count_bias;//address;
 
@@ -1235,97 +1207,6 @@ fptest fp4(
 );
 
 //muls
-/*
-fpoint2_multi #(
-		.arithmetic_present (1),
-		.root_present       (1),
-		.conversion_present (1)
-	) nios_custom_instr_floating_point_2_multi_1 (
-		.clk       (clk),       // s1.clk
-		.clk_en    (clk_en),    //   .clk_en
-		.dataa     (dataa1),     //   .dataa
-		.datab     (datab1),     //   .datab
-		.n         (n_mul),         //   .n
-		.reset     (reset),     //   .reset
-		.reset_req (reset_req), //   .reset_req
-		.start     (start_mul),     //   .start
-		.done      (done_mul1),      //   .done
-		.result    (result_mul1)     //   .result
-	);
-
-
-fpoint2_multi #(
-		.arithmetic_present (1),
-		.root_present       (1),
-		.conversion_present (1)
-	) nios_custom_instr_floating_point_2_multi_2 (
-		.clk       (clk),       // s1.clk
-		.clk_en    (clk_en),    //   .clk_en
-		.dataa     (dataa2),     //   .dataa
-		.datab     (datab2),     //   .datab
-		.n         (n_mul),         //   .n
-		.reset     (reset),     //   .reset
-		.reset_req (reset_req), //   .reset_req
-		.start     (start_mul),     //   .start
-		.done      (done_mul2),      //   .done
-		.result    (result_mul2)     //   .result
-	);
-	
-fpoint2_multi #(
-		.arithmetic_present (1),
-		.root_present       (1),
-		.conversion_present (1)
-	) nios_custom_instr_floating_point_2_multi_3 (
-		.clk       (clk),       // s1.clk
-		.clk_en    (clk_en),    //   .clk_en
-		.dataa     (dataa3),     //   .dataa
-		.datab     (datab3),     //   .datab
-		.n         (n_mul),         //   .n
-		.reset     (reset),     //   .reset
-		.reset_req (reset_req), //   .reset_req
-		.start     (start_mul),     //   .start
-		.done      (done_mul3),      //   .done
-		.result    (result_mul3)     //   .result
-	);
-	
-fpoint2_multi #(
-		.arithmetic_present (1),
-		.root_present       (1),
-		.conversion_present (1)
-	) nios_custom_instr_floating_point_2_multi_4 (
-		.clk       (clk),       // s1.clk
-		.clk_en    (clk_en),    //   .clk_en
-		.dataa     (dataa4),     //   .dataa
-		.datab     (datab4),     //   .datab
-		.n         (n_mul),         //   .n
-		.reset     (reset),     //   .reset
-		.reset_req (reset_req), //   .reset_req
-		.start     (start_mul),     //   .start
-		.done      (done_mul4),      //   .done
-		.result    (result_mul4)     //   .result
-	);
-	*/
-logic xo00, xo01,xo02,xo03;
-logic xu00,xu01,xu02,xu03;
-logic ao00,ao01,ao02,ao03;
-	
-macacc acc_hid_0_00 (
-	.clk(clk), .areset(reset),
-	.x(x0),.n(n0[0]),.r(r0),.xo(xo00),.xu(xu00),.ao(ao00)
-);
-
-macacc acc_hid_0_11 (
-	.clk(clk), .areset(reset),
-	.x(x1),.n(n0[1]),.r(r1),.xo(xo01),.xu(xu01),.ao(ao01)
-);
-macacc acc_hid_0_22 (
-	.clk(clk), .areset(reset),
-	.x(x2),.n(n0[2]),.r(r2),.xo(xo02),.xu(xu02),.ao(ao02)
-);
-macacc acc_hid_0_33 (
-	.clk(clk), .areset(reset),
-	.x(x3),.n(n0[3]),.r(r3),.xo(xo03),.xu(xu03),.ao(ao03)
-);
 
 
 
@@ -1397,25 +1278,6 @@ fpoint2_multi #(
 		.result    (result_add4)     //   .result
 	);
 
-//for the bias
-/*
-fpoint2_multi #(
-		.arithmetic_present (1),
-		.root_present       (1),
-		.conversion_present (1)
-	) nios_custom_instr_floating_point_2_multi_9 (
-		.clk       (clk),       // s1.clk
-		.clk_en    (clk_en),    //   .clk_en
-		.dataa     (dataa_bias),     //   .dataa
-		.datab     (datab_bias),     //   .datab
-		.n         (n_add),         //   .n
-		.reset     (reset),     //   .reset
-		.reset_req (reset_req), //   .reset_req
-		.start     (start_bias),     //   .start
-		.done      (done_bias),      //   .done
-		.result    (result_bias)     //   .result
-	);
-*/
 rise_edge_trigger ret1(
 	.clk(clk),
 	.reset(reset),
@@ -1439,6 +1301,18 @@ output_ram ramo(
 	.wren(wren_out),
 	.q(rdata_out)
 );
+
+
+
+fp_max max(
+	.clk(clk),
+	.areset(reset),
+	.a(dataa_comp),
+	.b(datab_comp),
+	.q(q_comp)
+);
+
+
 
 logic [31:0] wh1,wh2,wh3,wh4,rh1,rh2,rh3,rh4;
 logic [31:0] wo1,wo2,ro1,ro2;

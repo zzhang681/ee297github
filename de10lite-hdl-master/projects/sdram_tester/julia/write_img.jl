@@ -1,7 +1,7 @@
 using CSV
 using DataFrames
 print("Reading image file......")
-df_img = DataFrame(CSV.File("test_img_9.csv"))
+df_img = DataFrame(CSV.File("test_img_7.csv"))
 #df_img = DataFrame(CSV.File("test_img_3.csv"))
 println("Complete")
 

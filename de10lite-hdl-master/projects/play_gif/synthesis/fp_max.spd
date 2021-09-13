@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<simPackage>
+ <file path="fp_max_sim/fp_max.vo" type="VERILOG" />
+ <topLevel name="fp_max" />
+ <deviceFamily name="max10" />
+</simPackage>

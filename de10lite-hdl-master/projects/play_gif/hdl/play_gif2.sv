@@ -226,7 +226,7 @@ assign din_fp = 32'h3f000000;			//0.5
 assign reset_p = ~reset_n;
 
 
-
+wire [3:0] index_pred_fp;
 
 //assign {in3, in2, in1, in4} = test_data;
 //assign {in3, in2, in1, in4} = address_bias;
@@ -244,8 +244,9 @@ assign reset_p = ~reset_n;
 assign in4 = usedw;//states_fp;
 //assign in3 = dr_ram;
 //assign {in2, in1} = addr_r;
-assign in3 = states_fp;
-assign in1 = states;
+//assign in3 = states_fp;
+//assign in2 = states;
+
 //assign in4 = usedw;
 
 assign LEDR[9] = adone_fp;
@@ -349,17 +350,14 @@ fp_mac u4 (
 		.clk_50	  (clk_50),
 		.data		  (dataout_fifo),			//dataout_fifo
 		.din		  (img_fp),		//img_fp
-		.din_bias  (din_bias_fp),
 		.datavalid (1),			//o_write_req_fifo
 		.reset     (reset_p),     //   .reset
-		.read_done (read_done_fp),
-		.read_done_w2(read_done_w2_fp),
 		.start	  (ack),//.start     (start_manual),     //   .start
 		.i_addr_r  (addr_r),							//image address
 		.interface_address (interface_address),
 		.empty	  (empty_fifo),					//empty
 		.ready      (done_fp),      //   .done			//read_request to fifo
-		.done_bias (done_bias_fp),
+		.index_pred(index_pred_fp),
 		.result    (result_fp),     //   .result
 		.states	  (states_fp),
 		.next_in   (next_in_fp),
@@ -416,7 +414,7 @@ fifo_i_multiplier C_FIFO_I_MULTIPLIER (
 
 
 display_output display0(
-        .in1 (in1),
+        .in1 ({4'b0, index_pred_fp}),
         .in2 (in2),
         .in3 (in3),
         .in4 (in4),
@@ -429,6 +427,6 @@ display_output display0(
         .ledr (LEDR[7:0])
 );   
 
-
+//assign in1 = index_pred_fp;
 
 endmodule
