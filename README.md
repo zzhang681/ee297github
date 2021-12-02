@@ -1,3 +1,6 @@
+### ******This project is moved to a new repository, see the link below******
+
+https://github.com/zzhang681/MLP-Hand-written-Pattern-Classifier-Model-on-DE-10-Lite-FPGA
 # MSEE_Project_EE297
 A Project Proposal Presented to The faculty of the Department of Electrical Engineering San José State University
 
